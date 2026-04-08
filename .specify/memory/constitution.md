@@ -1,50 +1,102 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: 0.0.0 → 1.0.0 (initial ratification)
+- Added principles:
+  - I. Collaborator, Not Judge
+  - II. Graph Semantics Over Pixels
+  - III. Skateboard First
+  - IV. The Prompt Is the Product
+  - V. ADRs Are the Meta-Play
+- Added sections:
+  - Product Boundaries (from "What DesignPair Is NOT")
+  - Development Workflow
+- Templates reviewed:
+  - .specify/templates/plan-template.md ✅ no changes needed
+  - .specify/templates/spec-template.md ✅ no changes needed
+  - .specify/templates/tasks-template.md ✅ no changes needed
+  - .specify/templates/commands/ — no command templates exist
+- Follow-up TODOs: none
+-->
+
+# DesignPair Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Collaborator, Not Judge
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+The AI is a thinking partner, not an evaluator. It asks questions, flags
+concerns, and suggests alternatives. It MUST NOT score, grade, or rank
+the user's work. The tone MUST feel like a thoughtful senior engineer
+pairing with you — curious, constructive, never condescending.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Graph Semantics Over Pixels
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+The AI reasons about typed nodes and edges (Service → Database), not
+visual positions or layout. A well-connected topology MUST produce the
+same AI feedback regardless of how the user has arranged it on the
+canvas. Implementation decisions MUST preserve this separation between
+graph structure and visual presentation.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Skateboard First
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Ship the smallest thing that works end-to-end before expanding scope.
+The walking skeleton has 5 component types, basic edges, and one-button
+AI analysis. Every feature beyond that is roadmap, not prerequisite.
+New work MUST NOT block delivery of the current working vertical slice.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. The Prompt Is the Product
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+The quality of DesignPair depends entirely on how well the graph state
+is translated into a prompt the LLM can reason about. This is where
+the real engineering challenge lives. Graph-to-prompt construction MUST
+go beyond naive serialization — it MUST include topology analysis,
+data flow direction, component roles, and connection patterns.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. ADRs Are the Meta-Play
+
+Every significant decision MUST get an Architecture Decision Record.
+The ADR collection is part of the portfolio value — it demonstrates
+leadership thinking and decision-making rigor. ADR bodies are immutable
+once accepted; if a decision changes, create a new superseding ADR.
+
+## Product Boundaries
+
+DesignPair is an interactive architecture canvas with a real-time AI
+collaborator. The following boundaries are non-negotiable:
+
+- **Not interview prep or scoring.** It MUST NOT grade users or compare
+  against reference answers.
+- **Not text-to-diagram generation.** The user draws; the AI reasons
+  about what they've drawn. This is the inverse of tools like
+  Eraser/DiagramGPT.
+- **Not a general diagramming tool.** It is specifically for
+  system/software architecture.
+
+Any feature proposal that crosses these boundaries MUST be rejected or
+redesigned to stay within scope.
+
+## Development Workflow
+
+- CI runs lint + test + build for both frontend (TypeScript) and
+  backend (Go) on every push.
+- Strict TypeScript — no `any` types. Idiomatic Go — explicit error
+  handling, interfaces for external dependencies.
+- Test the graph-to-prompt logic and WebSocket message flow thoroughly.
+  Don't chase coverage for its own sake.
+- Commits SHOULD be atomic and well-described.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution defines the non-negotiable principles and boundaries
+for the DesignPair project. All implementation work, feature proposals,
+and architectural decisions MUST comply with these principles.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Amendment procedure:**
+1. Propose the change with rationale.
+2. Document the amendment in a new constitution version.
+3. Update the Sync Impact Report at the top of this file.
+4. Version increments follow semantic versioning:
+   MAJOR for principle removals/redefinitions, MINOR for additions,
+   PATCH for clarifications.
+
+**Version**: 1.0.0 | **Ratified**: 2026-04-08 | **Last Amended**: 2026-04-08
