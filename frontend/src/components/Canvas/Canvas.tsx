@@ -1,12 +1,12 @@
 import { useCallback } from 'react'
-import { ReactFlow, Background, Controls, useReactFlow, MarkerType, type Connection } from '@xyflow/react'
+import { ReactFlow, Background, Controls, useReactFlow, MarkerType, type Edge, type Connection } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { nodeTypes } from '../NodeTypes'
 import { edgeTypes } from '../EdgeTypes'
 import { componentTypeLabels, type ComponentType } from '../../types/graph'
 import { useGraphState } from '../../hooks/useGraphState'
 
-const isValidConnection = (connection: Connection) =>
+const isValidConnection = (connection: Edge | Connection) =>
   connection.source !== connection.target
 
 interface CanvasProps {

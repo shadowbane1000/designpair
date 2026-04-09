@@ -18,11 +18,11 @@ export const componentTypeLabels: Record<ComponentType, string> = {
   loadBalancer: 'Load Balancer',
 }
 
-export interface ArchitectureNodeData {
+export interface ArchitectureNodeData extends Record<string, unknown> {
   label: string
 }
 
-export interface ArchitectureEdgeData {
+export interface ArchitectureEdgeData extends Record<string, unknown> {
   label: string
 }
 
