@@ -9,11 +9,25 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shadowbane1000/designpair/internal/llm"
 	"github.com/shadowbane1000/designpair/internal/server"
 )
 
 func main() {
-	srv := server.New()
+	llmClient, err := llm.NewAnthropicClient()
+	if err != nil {
+		log.Printf("WARNING: %v — AI features will be unavailable", err)
+		llmClient = nil
+	}
+
+	var client llm.Client
+	if llmClient != nil {
+		client = llmClient
+	} else {
+		client = &noopClient{}
+	}
+
+	srv := server.New(client)
 
 	httpServer := &http.Server{
 		Addr:              ":8081",
@@ -40,4 +54,11 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 	log.Println("Server stopped")
+}
+
+type noopClient struct{}
+
+func (n *noopClient) StreamAnalysis(_ context.Context, _, _ string, onChunk func(string)) error {
+	onChunk("AI features are unavailable — ANTHROPIC_API_KEY is not configured.")
+	return nil
 }

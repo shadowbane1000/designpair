@@ -1,11 +1,18 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+type noopLLMClient struct{}
+
+func (n *noopLLMClient) StreamAnalysis(_ context.Context, _, _ string, _ func(string)) error {
+	return nil
+}
 
 func TestHealthCheck(t *testing.T) {
 	tests := []struct {
@@ -32,7 +39,7 @@ func TestHealthCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := New()
+			srv := New(&noopLLMClient{})
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rec := httptest.NewRecorder()
 

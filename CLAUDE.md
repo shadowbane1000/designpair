@@ -96,6 +96,8 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 - None (no persistence in this milestone) (001-empty-canvas)
 - TypeScript 5.x (frontend), Go 1.26+ (backend — unchanged) + React 19, @xyflow/react 12 (custom nodes, custom edges), Vite 6 (002-drag-and-connect)
 - None (in-memory React state only) (002-drag-and-connect)
+- TypeScript 5.x (frontend), Go 1.24 (backend) + @xyflow/react 12 (existing), coder/websocket (new), anthropic-sdk-go (new) (003-ai-responds)
+- None (session-only chat history in React state) (003-ai-responds)
 
 ## Recent Changes
 - 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)
