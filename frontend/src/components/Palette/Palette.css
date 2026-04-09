@@ -1,0 +1,45 @@
+.palette {
+  width: 180px;
+  padding: 16px;
+  border-right: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.palette-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.palette-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 2px solid #d1d5db;
+  background: #fff;
+  cursor: grab;
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.palette-item:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.palette-item-service { border-color: #3b82f6; }
+.palette-item-database { border-color: #8b5cf6; }
+.palette-item-cache { border-color: #f59e0b; }
+.palette-item-queue { border-color: #10b981; }
+.palette-item-loadBalancer { border-color: #ef4444; }

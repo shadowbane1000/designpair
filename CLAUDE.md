@@ -94,6 +94,8 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 ## Active Technologies
 - TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend) (001-empty-canvas)
 - None (no persistence in this milestone) (001-empty-canvas)
+- TypeScript 5.x (frontend), Go 1.26+ (backend — unchanged) + React 19, @xyflow/react 12 (custom nodes, custom edges), Vite 6 (002-drag-and-connect)
+- None (in-memory React state only) (002-drag-and-connect)
 
 ## Recent Changes
 - 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)

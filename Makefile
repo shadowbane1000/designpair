@@ -1,4 +1,4 @@
-.PHONY: dev frontend-dev backend-dev lint frontend-lint backend-lint test frontend-test backend-test build-all frontend-build backend-build
+.PHONY: dev frontend-dev backend-dev lint frontend-lint backend-lint test frontend-test backend-test build-all frontend-build backend-build e2e e2e-ui
 
 # Development
 dev:
@@ -40,3 +40,10 @@ frontend-build:
 
 backend-build:
 	docker build -t designpair-backend:latest backend/
+
+# E2E
+e2e:
+	cd frontend && npx playwright test
+
+e2e-ui:
+	cd frontend && npx playwright test --ui
