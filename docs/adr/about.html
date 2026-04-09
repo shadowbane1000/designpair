@@ -1,0 +1,34 @@
+<h2>DesignPair ADRs</h2>
+<p class="about-tagline">Architecture Decision Records for an interactive architecture canvas with a real-time AI collaborator</p>
+
+<h3>About DesignPair</h3>
+<p>DesignPair is an interactive architecture canvas where you diagram your system by
+dragging and connecting components, and an AI collaborator engages as you build &mdash;
+asking probing questions, flagging risks, and suggesting improvements. It's a thinking
+partner for architectural work, not a scoring tool or diagram generator.</p>
+
+<h3>About These ADRs</h3>
+<p>These Architecture Decision Records document the significant technical decisions
+behind DesignPair. The collection covers the full stack: a TypeScript/React frontend
+with React Flow for the interactive canvas, a Go backend for WebSocket communication
+and LLM integration, and the Anthropic Claude API for real-time architectural analysis.</p>
+
+<h3>Sample Queries</h3>
+<p>Try asking questions that explore the decisions behind DesignPair:</p>
+<ul class="about-queries">
+  <li @click="$store.query.submitQuery($el.textContent.replace(/[\u201c\u201d]/g, ''))">&ldquo;Why was React Flow chosen over alternatives like Excalidraw or D3 for the canvas?&rdquo;</li>
+  <li @click="$store.query.submitQuery($el.textContent.replace(/[\u201c\u201d]/g, ''))">&ldquo;What are the tradeoffs of using WebSocket for real-time communication versus server-sent events?&rdquo;</li>
+  <li @click="$store.query.submitQuery($el.textContent.replace(/[\u201c\u201d]/g, ''))">&ldquo;Why was persistence deferred in v1, and what would need to change to add it?&rdquo;</li>
+  <li @click="$store.query.submitQuery($el.textContent.replace(/[\u201c\u201d]/g, ''))">&ldquo;How does the monorepo structure support independent development of the frontend and backend?&rdquo;</li>
+  <li @click="$store.query.submitQuery($el.textContent.replace(/[\u201c\u201d]/g, ''))">&ldquo;What drove the decision to use Anthropic Claude rather than a local LLM for the AI collaborator?&rdquo;</li>
+</ul>
+
+<h3>The Bigger Picture</h3>
+<p>DesignPair is the second portfolio project by Tyler Colbert, alongside
+<a href="https://adr-insight.colberts.us" target="_blank" rel="noopener">ADR Insight</a>
+(which powers this very page). Together the two projects demonstrate Go, TypeScript/React,
+two different AI integration patterns (RAG vs. real-time conversational), and a
+commitment to documenting decisions as they're made.</p>
+
+<p class="about-author">Built by Tyler Colbert</p>
+<p><a href="https://github.com/shadowbane1000/designpair" target="_blank" rel="noopener">View on GitHub &rarr;</a></p>
