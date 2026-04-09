@@ -6,7 +6,7 @@ You diagram your system by dragging and connecting components, and the AI engage
 
 ## Why This Project Exists
 
-This is the second portfolio project for Tyler Colbert (alongside [ADR Insight](https://github.com/tcolbert/adr-insight)), targeting Principal Engineer / Staff+ roles. Together the two projects demonstrate:
+This is the second portfolio project for Tyler Colbert (alongside [ADR Insight](https://github.com/shadowbane1000/adrinsight)), targeting Principal Engineer / Staff+ roles. Together the two projects demonstrate:
 
 | | ADR Insight | DesignPair |
 |---|---|---|
@@ -27,7 +27,49 @@ DesignPair fills the gaps ADR Insight doesn't cover: visual/interactive UI, Type
 
 ## Getting Started
 
-_Coming soon — project is in early development._
+### Prerequisites
+
+- Node.js v20+
+- Go 1.26+
+- Docker (for building container images)
+
+### Setup
+
+```bash
+git clone ssh://git@192.168.0.41:30009/tyler/designpair.git
+cd designpair
+cd frontend && npm install && cd ..
+```
+
+### Development
+
+```bash
+make dev
+```
+
+This starts:
+- Frontend dev server at http://localhost:5173 (Vite, hot reload)
+- Backend server at http://localhost:8081
+
+### Verify
+
+```bash
+curl http://localhost:8081/health
+# {"status":"ok"}
+```
+
+### Lint & Test
+
+```bash
+make lint    # ESLint + golangci-lint
+make test    # Vitest + go test
+```
+
+### Build Docker Images
+
+```bash
+make build-all
+```
 
 ## Documentation
 
