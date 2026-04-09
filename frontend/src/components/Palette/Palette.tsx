@@ -1,7 +1,15 @@
-import { ComponentTypes, componentTypeLabels, type ComponentType } from '../../types/graph'
+import { useState } from 'react'
+import {
+  componentRegistry,
+  ComponentCategories,
+  categoryLabels,
+  categoryColors,
+  type ComponentType,
+  type ComponentCategory,
+} from '../../types/graph'
 import './Palette.css'
 
-const componentList = Object.values(ComponentTypes) as ComponentType[]
+const categories = Object.values(ComponentCategories) as ComponentCategory[]
 
 function onDragStart(event: React.DragEvent, type: ComponentType) {
   event.dataTransfer.setData('application/reactflow', type)
@@ -9,20 +17,54 @@ function onDragStart(event: React.DragEvent, type: ComponentType) {
 }
 
 export function Palette() {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+
+  const toggleCategory = (cat: ComponentCategory) => {
+    setCollapsed((prev) => ({ ...prev, [cat]: !prev[cat] }))
+  }
+
   return (
     <aside className="palette">
       <h3 className="palette-title">Components</h3>
-      {componentList.map((type) => (
-        <div
-          key={type}
-          className={`palette-item palette-item-${type}`}
-          draggable
-          onDragStart={(e) => { onDragStart(e, type) }}
-          data-testid={`palette-${type}`}
-        >
-          {componentTypeLabels[type]}
-        </div>
-      ))}
+      {categories.map((cat) => {
+        const entries = componentRegistry.filter((e) => e.category === cat)
+        const isCollapsed = collapsed[cat] ?? false
+        const color = categoryColors[cat]
+
+        return (
+          <div key={cat} className="palette-category">
+            <button
+              className="palette-category-header"
+              onClick={() => { toggleCategory(cat) }}
+              style={{ borderLeftColor: color }}
+              data-testid={`category-${cat}`}
+            >
+              <span className="palette-category-label">{categoryLabels[cat]}</span>
+              <span className="palette-category-chevron">{isCollapsed ? '+' : '−'}</span>
+            </button>
+            {!isCollapsed && (
+              <div className="palette-category-items">
+                {entries.map((entry) => {
+                  const Icon = entry.icon
+                  return (
+                    <div
+                      key={entry.type}
+                      className="palette-item"
+                      style={{ borderColor: color }}
+                      draggable
+                      onDragStart={(e) => { onDragStart(e, entry.type) }}
+                      data-testid={`palette-${entry.type}`}
+                    >
+                      <Icon size={14} style={{ color, flexShrink: 0 }} />
+                      <span>{entry.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </aside>
   )
 }

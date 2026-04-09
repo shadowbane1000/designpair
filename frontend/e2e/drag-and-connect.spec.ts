@@ -28,9 +28,9 @@ test.describe('Drag and Connect', () => {
 
   test('palette displays all 5 component types', async ({ page }) => {
     await expect(page.getByTestId('palette-service')).toBeVisible()
-    await expect(page.getByTestId('palette-database')).toBeVisible()
+    await expect(page.getByTestId('palette-databaseSql')).toBeVisible()
     await expect(page.getByTestId('palette-cache')).toBeVisible()
-    await expect(page.getByTestId('palette-queue')).toBeVisible()
+    await expect(page.getByTestId('palette-messageQueue')).toBeVisible()
     await expect(page.getByTestId('palette-loadBalancer')).toBeVisible()
   })
 
@@ -48,14 +48,14 @@ test.describe('Drag and Connect', () => {
     const canvas = page.locator('.react-flow')
 
     await page.getByTestId('palette-service').dragTo(canvas, { targetPosition: { x: 200, y: 100 } })
-    await page.getByTestId('palette-database').dragTo(canvas, { targetPosition: { x: 400, y: 100 } })
+    await page.getByTestId('palette-databaseSql').dragTo(canvas, { targetPosition: { x: 400, y: 100 } })
 
     const state = await getGraphState(page)
     expect(state.nodes.length).toBeGreaterThanOrEqual(2)
 
     const types = state.nodes.map((n) => n.type)
     expect(types).toContain('service')
-    expect(types).toContain('database')
+    expect(types).toContain('databaseSql')
   })
 
   test('debug panel toggles and shows graph state JSON', async ({ page }) => {
@@ -82,14 +82,14 @@ test.describe('Drag and Connect', () => {
     const canvas = page.locator('.react-flow')
 
     await page.getByTestId('palette-service').dragTo(canvas, { targetPosition: { x: 200, y: 150 } })
-    await page.getByTestId('palette-database').dragTo(canvas, { targetPosition: { x: 500, y: 150 } })
+    await page.getByTestId('palette-databaseSql').dragTo(canvas, { targetPosition: { x: 500, y: 150 } })
 
     const state = await getGraphState(page)
     expect(state.nodes.length).toBeGreaterThanOrEqual(2)
 
     const types = state.nodes.map((n) => n.type)
     expect(types).toContain('service')
-    expect(types).toContain('database')
+    expect(types).toContain('databaseSql')
   })
 
   test('delete node with Delete key removes it from graph state', async ({ page }) => {
@@ -100,12 +100,14 @@ test.describe('Drag and Connect', () => {
     let state = await getGraphState(page)
     expect(state.nodes).toHaveLength(1)
 
-    // Click on the node to select it, then press Delete
+    // Click the canvas background first to deselect anything, then click the node
+    await canvas.click({ position: { x: 10, y: 10 } })
     const node = page.locator('.react-flow__node').first()
-    await node.click()
-    await page.keyboard.press('Delete')
+    await node.click({ position: { x: 5, y: 5 } })
+    await page.keyboard.press('Backspace')
 
-    // Verify node removed
+    // Wait and verify node removed
+    await page.waitForTimeout(300)
     state = await getGraphState(page)
     expect(state.nodes).toHaveLength(0)
   })

@@ -61,7 +61,7 @@ export function Canvas({ graphState }: CanvasProps) {
         deleteKeyCode={['Backspace', 'Delete']}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        fitView
+        defaultViewport={{ x: 0, y: 0, zoom: 0.75 }}
       >
         <Background />
         <Controls />

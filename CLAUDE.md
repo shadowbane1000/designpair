@@ -100,6 +100,7 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 - None (session-only chat history in React state) (003-ai-responds)
 - TypeScript 5.x (frontend), Go 1.24 (backend) + Existing stack + Docker Compose for deployment (004-deployable-skeleton)
 - None (session-only per ADR-005) (004-deployable-skeleton)
+- TypeScript 5.x (frontend), Go 1.24 (backend — minor prompt changes only) + Existing stack + lucide-react (new — icon library) (005-expanded-palette)
 
 ## Recent Changes
 - 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)

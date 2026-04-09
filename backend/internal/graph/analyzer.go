@@ -13,6 +13,7 @@ type TopologyAnalysis struct {
 	ConnectedComponents  int              `json:"connectedComponents"`
 	EdgeProtocols        map[string]int   `json:"edgeProtocols"`
 	NodesByType          map[string]int   `json:"nodesByType"`
+	ScaledNodes          map[string]int   `json:"scaledNodes"`
 }
 
 // Analyze computes topology properties from a graph state.
@@ -26,6 +27,7 @@ func Analyze(g model.GraphState) TopologyAnalysis {
 		Cycles:               [][]string{},
 		EdgeProtocols:        make(map[string]int),
 		NodesByType:          make(map[string]int),
+		ScaledNodes:          make(map[string]int),
 	}
 
 	if len(g.Nodes) == 0 {
@@ -39,6 +41,9 @@ func Analyze(g model.GraphState) TopologyAnalysis {
 		analysis.NodesByType[n.Type]++
 		analysis.FanIn[n.Name] = 0
 		analysis.FanOut[n.Name] = 0
+		if n.ReplicaCount > 1 {
+			analysis.ScaledNodes[n.Name] = n.ReplicaCount
+		}
 	}
 
 	// Adjacency lists (by ID for graph algorithms, by name for output)

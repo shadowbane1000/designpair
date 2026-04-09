@@ -54,6 +54,6 @@ The canvas provides a palette of drag-and-drop architecture components:
 - **Data:** Database (SQL), Database (NoSQL), Cache, Object Storage
 - **Messaging:** Message Queue, Event Bus, Stream Processor
 - **Network:** CDN, DNS, Firewall
-- **Clients:** Web Client, Mobile Client, External API
+- **Clients:** Web Client, Mobile Client, IoT Client, External API
 
 Each component is a typed node with metadata (name, optional annotations). Edges represent connections with optional labels (HTTP, gRPC, async, etc.).

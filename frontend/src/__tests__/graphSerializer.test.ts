@@ -30,7 +30,7 @@ describe('serializeGraph', () => {
   it('serializes multiple nodes with edges', () => {
     const nodes: ArchitectureNode[] = [
       { id: 'n1', type: 'service', position: { x: 0, y: 0 }, data: { label: 'API' } },
-      { id: 'n2', type: 'database', position: { x: 200, y: 0 }, data: { label: 'DB' } },
+      { id: 'n2', type: 'databaseSql', position: { x: 200, y: 0 }, data: { label: 'DB' } },
     ]
     const edges: ArchitectureEdge[] = [
       { id: 'e1', source: 'n1', target: 'n2', data: { label: 'SQL' } },
@@ -73,7 +73,7 @@ describe('serializeGraph', () => {
   it('serializes multiple edges between the same two nodes', () => {
     const nodes: ArchitectureNode[] = [
       { id: 'n1', type: 'service', position: { x: 0, y: 0 }, data: { label: 'API' } },
-      { id: 'n2', type: 'database', position: { x: 200, y: 0 }, data: { label: 'DB' } },
+      { id: 'n2', type: 'databaseSql', position: { x: 200, y: 0 }, data: { label: 'DB' } },
     ]
     const edges: ArchitectureEdge[] = [
       { id: 'e1', source: 'n1', target: 'n2', data: { label: 'HTTP' } },
@@ -91,5 +91,33 @@ describe('serializeGraph', () => {
     ]
     const result = serializeGraph(nodes, [])
     expect(result.nodes[0]?.name).toBe('Redis')
+  })
+
+  it('includes replicaCount when > 1', () => {
+    const nodes: ArchitectureNode[] = [
+      { id: 'n1', type: 'service', position: { x: 0, y: 0 }, data: { label: 'API', replicaCount: 3 } },
+    ]
+    const result = serializeGraph(nodes, [])
+    expect(result.nodes[0]?.replicaCount).toBe(3)
+  })
+
+  it('omits replicaCount when 1 or undefined', () => {
+    const nodes: ArchitectureNode[] = [
+      { id: 'n1', type: 'service', position: { x: 0, y: 0 }, data: { label: 'A', replicaCount: 1 } },
+      { id: 'n2', type: 'service', position: { x: 100, y: 0 }, data: { label: 'B' } },
+    ]
+    const result = serializeGraph(nodes, [])
+    expect(result.nodes[0]?.replicaCount).toBeUndefined()
+    expect(result.nodes[1]?.replicaCount).toBeUndefined()
+  })
+
+  it('serializes new component types', () => {
+    const nodes: ArchitectureNode[] = [
+      { id: 'n1', type: 'apiGateway', position: { x: 0, y: 0 }, data: { label: 'Gateway' } },
+      { id: 'n2', type: 'iotClient', position: { x: 100, y: 0 }, data: { label: 'Sensors' } },
+    ]
+    const result = serializeGraph(nodes, [])
+    expect(result.nodes[0]?.type).toBe('apiGateway')
+    expect(result.nodes[1]?.type).toBe('iotClient')
   })
 })
