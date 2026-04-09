@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { ReactFlow, Background, Controls, useReactFlow, MarkerType, type Edge, type Connection } from '@xyflow/react'
+import { ReactFlow, Background, Controls, useReactFlow, MarkerType, ConnectionMode, type Edge, type Connection } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { nodeTypes } from '../NodeTypes'
 import { edgeTypes } from '../EdgeTypes'
@@ -11,9 +11,10 @@ const isValidConnection = (connection: Edge | Connection) =>
 
 interface CanvasProps {
   graphState: ReturnType<typeof useGraphState>
+  onEdgeClick?: (event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => void
 }
 
-export function Canvas({ graphState }: CanvasProps) {
+export function Canvas({ graphState, onEdgeClick }: CanvasProps) {
   const { screenToFlowPosition } = useReactFlow()
   const {
     nodes,
@@ -57,10 +58,12 @@ export function Canvas({ graphState }: CanvasProps) {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'labeled', markerEnd: { type: MarkerType.ArrowClosed } }}
+        connectionMode={ConnectionMode.Loose}
         isValidConnection={isValidConnection}
         deleteKeyCode={['Backspace', 'Delete']}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        onEdgeClick={onEdgeClick}
         defaultViewport={{ x: 0, y: 0, zoom: 0.75 }}
       >
         <Background />

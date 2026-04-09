@@ -1,0 +1,102 @@
+.edge-context-menu {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  min-width: 220px;
+  font-size: 12px;
+}
+
+.ecm-section {
+  margin-bottom: 10px;
+}
+
+.ecm-section:last-child {
+  margin-bottom: 0;
+}
+
+.ecm-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.ecm-protocols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ecm-protocol-btn {
+  padding: 3px 8px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ecm-protocol-btn:hover {
+  opacity: 0.8;
+}
+
+.ecm-protocol-btn.active {
+  font-weight: 600;
+}
+
+.ecm-custom-row {
+  margin-top: 6px;
+}
+
+.ecm-custom-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 11px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ecm-custom-input:focus {
+  border-color: #3b82f6;
+}
+
+.ecm-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.ecm-action-btn {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f9fafb;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ecm-action-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.ecm-action-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ecm-action-btn.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #3b82f6;
+}

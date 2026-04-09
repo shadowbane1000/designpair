@@ -109,6 +109,31 @@ func BuildPrompt(g model.GraphState, analysis TopologyAnalysis) string {
 		b.WriteString(fmt.Sprintf("- **Connection types**: %s\n", strings.Join(protocols, ", ")))
 	}
 
+	// Connection analysis
+	if len(analysis.ProtocolDistribution) > 0 || analysis.SyncChainDepth > 0 || len(analysis.BidirectionalEdges) > 0 {
+		b.WriteString("\n### Connection Analysis\n")
+
+		if analysis.SyncChainDepth >= 3 {
+			b.WriteString(fmt.Sprintf("- **Sync chain depth**: %d hops (latency and failure cascade risk)\n", analysis.SyncChainDepth))
+		}
+
+		if len(analysis.AsyncBoundaries) > 0 {
+			b.WriteString(fmt.Sprintf("- **Async boundaries**: %s\n", strings.Join(analysis.AsyncBoundaries, "; ")))
+		}
+
+		if len(analysis.BidirectionalEdges) > 0 {
+			b.WriteString(fmt.Sprintf("- **Bidirectional dependencies** (tight coupling): %s\n", strings.Join(analysis.BidirectionalEdges, ", ")))
+		}
+
+		if len(analysis.ProtocolDistribution) > 0 {
+			protos := make([]string, 0, len(analysis.ProtocolDistribution))
+			for proto, count := range analysis.ProtocolDistribution {
+				protos = append(protos, fmt.Sprintf("%s (%d)", proto, count))
+			}
+			b.WriteString(fmt.Sprintf("- **Protocol distribution**: %s\n", strings.Join(protos, ", ")))
+		}
+	}
+
 	b.WriteString("\n")
 
 	// JSON appendix (without positions)

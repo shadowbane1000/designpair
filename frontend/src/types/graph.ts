@@ -77,7 +77,7 @@ export const componentRegistry: ComponentRegistryEntry[] = [
   { type: 'cache', label: 'Cache', category: 'data', icon: HardDrive, supportsReplicas: true },
   { type: 'objectStorage', label: 'Object Storage', category: 'data', icon: Archive, supportsReplicas: true },
   // Messaging
-  { type: 'messageQueue', label: 'Message Queue', category: 'messaging', icon: MessageSquare, supportsReplicas: false },
+  { type: 'messageQueue', label: 'Message Queue', category: 'messaging', icon: MessageSquare, supportsReplicas: true },
   { type: 'eventBus', label: 'Event Bus', category: 'messaging', icon: Radio, supportsReplicas: false },
   { type: 'streamProcessor', label: 'Stream Processor', category: 'messaging', icon: Activity, supportsReplicas: true },
   // Network
@@ -105,8 +105,66 @@ export interface ArchitectureNodeData extends Record<string, unknown> {
   replicaCount?: number
 }
 
+// Edge protocol types
+export const EdgeProtocols = {
+  http: 'http',
+  grpc: 'grpc',
+  sql: 'sql',
+  tcp: 'tcp',
+  async: 'async',
+  pubsub: 'pubsub',
+  websocket: 'websocket',
+  mqtt: 'mqtt',
+  custom: 'custom',
+} as const
+
+export type EdgeProtocol = (typeof EdgeProtocols)[keyof typeof EdgeProtocols]
+
+export const EdgeDirections = {
+  oneWay: 'oneWay',
+  bidirectional: 'bidirectional',
+} as const
+
+export type EdgeDirection = (typeof EdgeDirections)[keyof typeof EdgeDirections]
+
+export type SyncAsync = 'sync' | 'async'
+
+export interface ProtocolConfig {
+  protocol: EdgeProtocol
+  label: string
+  defaultSyncAsync: SyncAsync
+  color: string
+}
+
+export const protocolRegistry: ProtocolConfig[] = [
+  { protocol: 'http', label: 'HTTP', defaultSyncAsync: 'sync', color: '#3b82f6' },
+  { protocol: 'grpc', label: 'gRPC', defaultSyncAsync: 'sync', color: '#6366f1' },
+  { protocol: 'sql', label: 'SQL', defaultSyncAsync: 'sync', color: '#8b5cf6' },
+  { protocol: 'tcp', label: 'TCP', defaultSyncAsync: 'sync', color: '#64748b' },
+  { protocol: 'async', label: 'async', defaultSyncAsync: 'async', color: '#10b981' },
+  { protocol: 'pubsub', label: 'pub/sub', defaultSyncAsync: 'async', color: '#14b8a6' },
+  { protocol: 'websocket', label: 'WebSocket', defaultSyncAsync: 'async', color: '#f59e0b' },
+  { protocol: 'mqtt', label: 'MQTT', defaultSyncAsync: 'async', color: '#06b6d4' },
+]
+
+export const protocolColors: Record<string, string> = Object.fromEntries(
+  protocolRegistry.map((p) => [p.protocol, p.color]),
+)
+
+export const protocolLabels: Record<string, string> = Object.fromEntries(
+  protocolRegistry.map((p) => [p.protocol, p.label]),
+)
+
+export function getProtocolDefault(protocol: EdgeProtocol): SyncAsync {
+  const entry = protocolRegistry.find((p) => p.protocol === protocol)
+  return entry?.defaultSyncAsync ?? 'sync'
+}
+
 export interface ArchitectureEdgeData extends Record<string, unknown> {
   label: string
+  protocol?: EdgeProtocol
+  direction?: EdgeDirection
+  syncAsync?: SyncAsync
 }
 
 export type ArchitectureNode = Node<ArchitectureNodeData, ComponentType>
@@ -125,6 +183,9 @@ export interface SerializedEdge {
   source: string
   target: string
   label: string
+  protocol?: string
+  direction?: string
+  syncAsync?: string
 }
 
 export interface GraphState {

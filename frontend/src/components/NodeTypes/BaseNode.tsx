@@ -18,8 +18,12 @@ export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supports
 
   return (
     <div className={`architecture-node ${className}`} data-testid={`node-${id}`}>
-      <Handle type="target" position={Position.Top} id="target-top" />
-      <Handle type="target" position={Position.Left} id="target-left" />
+      {/* Dual handles at each position: source + target overlapping */}
+      <Handle type="target" position={Position.Top} id="top-target" className="handle-overlay" />
+      <Handle type="source" position={Position.Top} id="top-source" className="handle-overlay" />
+      <Handle type="target" position={Position.Left} id="left-target" className="handle-overlay" />
+      <Handle type="source" position={Position.Left} id="left-source" className="handle-overlay" />
+
       <div className="node-header">
         <Icon size={16} className="node-icon" />
         <span className="node-type-label">{typeLabel}</span>
@@ -67,8 +71,11 @@ export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supports
           </button>
         </div>
       )}
-      <Handle type="source" position={Position.Bottom} id="source-bottom" />
-      <Handle type="source" position={Position.Right} id="source-right" />
+
+      <Handle type="target" position={Position.Bottom} id="bottom-target" className="handle-overlay" />
+      <Handle type="source" position={Position.Bottom} id="bottom-source" className="handle-overlay" />
+      <Handle type="target" position={Position.Right} id="right-target" className="handle-overlay" />
+      <Handle type="source" position={Position.Right} id="right-source" className="handle-overlay" />
     </div>
   )
 }
