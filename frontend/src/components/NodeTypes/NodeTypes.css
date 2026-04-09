@@ -1,10 +1,22 @@
 .architecture-node {
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 8px;
   border: 2px solid #333;
   background: #fff;
-  min-width: 120px;
+  min-width: 130px;
   font-family: system-ui, sans-serif;
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.node-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .node-type-label {
@@ -12,14 +24,23 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #666;
-  margin-bottom: 4px;
   font-weight: 600;
+  flex: 1;
+}
+
+.node-replica-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  color: #333;
 }
 
 .node-name-input {
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   width: 100%;
   padding: 2px 0;
@@ -31,28 +52,80 @@
   border-bottom: 1px solid #999;
 }
 
-/* Component type colors */
-.node-service {
+/* Replica count control */
+.node-replica-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.replica-btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f9fafb;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+}
+
+.replica-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.replica-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.replica-input {
+  width: 32px;
+  height: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  background: #fff;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.replica-input::-webkit-inner-spin-button,
+.replica-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Category colors */
+.node-compute {
   border-color: #3b82f6;
   background: #eff6ff;
 }
 
-.node-database {
+.node-data {
   border-color: #8b5cf6;
   background: #f5f3ff;
 }
 
-.node-cache {
-  border-color: #f59e0b;
-  background: #fffbeb;
-}
-
-.node-queue {
+.node-messaging {
   border-color: #10b981;
   background: #ecfdf5;
 }
 
-.node-loadbalancer {
+.node-network {
   border-color: #ef4444;
   background: #fef2f2;
+}
+
+.node-clients {
+  border-color: #f59e0b;
+  background: #fffbeb;
 }

@@ -25,7 +25,11 @@ func BuildPrompt(g model.GraphState, analysis TopologyAnalysis) string {
 	// Components by type
 	b.WriteString("### Components\n")
 	for _, n := range g.Nodes {
-		b.WriteString(fmt.Sprintf("- **%s** (%s)\n", n.Name, n.Type))
+		if n.ReplicaCount > 1 {
+			b.WriteString(fmt.Sprintf("- **%s** (%s, ×%d replicas)\n", n.Name, n.Type, n.ReplicaCount))
+		} else {
+			b.WriteString(fmt.Sprintf("- **%s** (%s)\n", n.Name, n.Type))
+		}
 	}
 	b.WriteString("\n")
 
@@ -71,6 +75,15 @@ func BuildPrompt(g model.GraphState, analysis TopologyAnalysis) string {
 		if count >= 3 {
 			b.WriteString(fmt.Sprintf("- **High fan-out**: %s has %d outgoing connections (coupling risk)\n", name, count))
 		}
+	}
+
+	// Scaled services
+	if len(analysis.ScaledNodes) > 0 {
+		scaled := make([]string, 0, len(analysis.ScaledNodes))
+		for name, count := range analysis.ScaledNodes {
+			scaled = append(scaled, fmt.Sprintf("%s (×%d)", name, count))
+		}
+		b.WriteString(fmt.Sprintf("- **Scaled services**: %s\n", strings.Join(scaled, ", ")))
 	}
 
 	if len(analysis.SinglePointsOfFailure) > 0 {

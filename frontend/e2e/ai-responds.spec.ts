@@ -41,7 +41,7 @@ test.describe('AI Responds', () => {
 
     const canvas = page.locator('.react-flow')
     await page.getByTestId('palette-service').dragTo(canvas, { targetPosition: { x: 200, y: 150 } })
-    await page.getByTestId('palette-database').dragTo(canvas, { targetPosition: { x: 500, y: 150 } })
+    await page.getByTestId('palette-databaseSql').dragTo(canvas, { targetPosition: { x: 500, y: 150 } })
 
     await submitChat(page)
 

@@ -7,10 +7,11 @@ type GraphState struct {
 }
 
 type GraphNode struct {
-	ID       string   `json:"id"`
-	Type     string   `json:"type"`
-	Name     string   `json:"name"`
-	Position Position `json:"position"`
+	ID           string   `json:"id"`
+	Type         string   `json:"type"`
+	Name         string   `json:"name"`
+	Position     Position `json:"position"`
+	ReplicaCount int      `json:"replicaCount,omitempty"`
 }
 
 type Position struct {
