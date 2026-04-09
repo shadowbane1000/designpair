@@ -19,7 +19,7 @@ jobs:
 
       - name: Install Go
         run: |
-          curl -sL https://go.dev/dl/go1.26.1.linux-amd64.tar.gz | tar -C /usr/local -xz
+          curl -sL https://go.dev/dl/go1.24.13.linux-amd64.tar.gz | tar -C /usr/local -xz
           echo "/usr/local/go/bin" >> $GITHUB_PATH
           echo "$HOME/go/bin" >> $GITHUB_PATH
 
