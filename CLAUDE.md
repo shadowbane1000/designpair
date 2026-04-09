@@ -90,3 +90,10 @@ Prompt construction must go beyond "here's a list of nodes and edges." It must i
 ## Tyler's Level
 
 Tyler is learning Go (second project, growing proficiency) and refreshing TypeScript/React. He's an expert systems architect with 25+ years experience. Help him write idiomatic code in both languages, flag non-idiomatic patterns, but don't over-explain architectural concepts.
+
+## Active Technologies
+- TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend) (001-empty-canvas)
+- None (no persistence in this milestone) (001-empty-canvas)
+
+## Recent Changes
+- 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)
