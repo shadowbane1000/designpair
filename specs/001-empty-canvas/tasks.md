@@ -104,7 +104,7 @@
 
 - [x] T021 [P] Add a `.gitignore` at repo root covering `node_modules/`, `dist/`, Go build artifacts, `.env`
 - [x] T022 [P] Update `README.md` with setup instructions matching `specs/001-empty-canvas/quickstart.md`
-- [ ] T023 Run `specs/001-empty-canvas/quickstart.md` validation — follow the quickstart from a clean state and verify every step works
+- [x] T023 Run `specs/001-empty-canvas/quickstart.md` validation — follow the quickstart from a clean state and verify every step works
 
 ---
 
