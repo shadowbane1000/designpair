@@ -101,7 +101,8 @@ jobs:
         run: |
           scp -i ~/.ssh/deploy_key /tmp/adrinsight-designpair.tar.gz ec2-user@tyler.colberts.us:/tmp/adrinsight-designpair.tar.gz
           scp -i ~/.ssh/deploy_key docker-compose.adrs.yml ec2-user@tyler.colberts.us:~/designpair-adrs/docker-compose.prod.yml
-          scp -ri ~/.ssh/deploy_key docs/adr/ ec2-user@tyler.colberts.us:~/designpair-adrs/docs/adr/
+          ssh -i ~/.ssh/deploy_key ec2-user@tyler.colberts.us 'rm -rf ~/designpair-adrs/docs/adr && mkdir -p ~/designpair-adrs/docs/adr'
+          scp -i ~/.ssh/deploy_key docs/adr/*.md ec2-user@tyler.colberts.us:~/designpair-adrs/docs/adr/
           scp -i ~/.ssh/deploy_key /tmp/adr-insight.db ec2-user@tyler.colberts.us:~/designpair-adrs/adr-insight.db
 
       - name: Deploy to server
