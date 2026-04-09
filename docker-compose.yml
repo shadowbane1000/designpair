@@ -1,0 +1,20 @@
+services:
+  frontend:
+    image: designpair-frontend:latest
+    ports:
+      - "127.0.0.1:8083:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    image: designpair-backend:latest
+    expose:
+      - "8081"
+    env_file: .env
+    restart: unless-stopped

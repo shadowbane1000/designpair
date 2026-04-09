@@ -98,6 +98,8 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 - None (in-memory React state only) (002-drag-and-connect)
 - TypeScript 5.x (frontend), Go 1.24 (backend) + @xyflow/react 12 (existing), coder/websocket (new), anthropic-sdk-go (new) (003-ai-responds)
 - None (session-only chat history in React state) (003-ai-responds)
+- TypeScript 5.x (frontend), Go 1.24 (backend) + Existing stack + Docker Compose for deployment (004-deployable-skeleton)
+- None (session-only per ADR-005) (004-deployable-skeleton)
 
 ## Recent Changes
 - 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)

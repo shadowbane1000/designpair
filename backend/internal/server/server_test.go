@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/shadowbane1000/designpair/internal/llm"
 )
 
 type noopLLMClient struct{}
 
-func (n *noopLLMClient) StreamAnalysis(_ context.Context, _, _ string, _ func(string)) error {
+func (n *noopLLMClient) StreamAnalysis(_ context.Context, _ string, _ []llm.ConversationTurn, _ func(string)) error {
 	return nil
 }
 
