@@ -14,6 +14,10 @@ type TopologyAnalysis struct {
 	EdgeProtocols        map[string]int   `json:"edgeProtocols"`
 	NodesByType          map[string]int   `json:"nodesByType"`
 	ScaledNodes          map[string]int   `json:"scaledNodes"`
+	SyncChainDepth       int              `json:"syncChainDepth"`
+	AsyncBoundaries      []string         `json:"asyncBoundaries"`
+	BidirectionalEdges   []string         `json:"bidirectionalEdges"`
+	ProtocolDistribution map[string]int   `json:"protocolDistribution"`
 }
 
 // Analyze computes topology properties from a graph state.
@@ -28,6 +32,9 @@ func Analyze(g model.GraphState) TopologyAnalysis {
 		EdgeProtocols:        make(map[string]int),
 		NodesByType:          make(map[string]int),
 		ScaledNodes:          make(map[string]int),
+		AsyncBoundaries:      []string{},
+		BidirectionalEdges:   []string{},
+		ProtocolDistribution: make(map[string]int),
 	}
 
 	if len(g.Nodes) == 0 {
@@ -50,6 +57,9 @@ func Analyze(g model.GraphState) TopologyAnalysis {
 	outEdges := make(map[string][]string) // id -> [target ids]
 	inEdges := make(map[string][]string)  // id -> [source ids]
 
+	// Track sync/async per edge for chain analysis
+	edgeSyncAsync := make(map[string]string) // "source->target" -> "sync"/"async"
+
 	for _, e := range g.Edges {
 		srcName := nodeByID[e.Source].Name
 		tgtName := nodeByID[e.Target].Name
@@ -64,7 +74,30 @@ func Analyze(g model.GraphState) TopologyAnalysis {
 			label = "unlabeled"
 		}
 		analysis.EdgeProtocols[label]++
+
+		// Protocol distribution
+		if e.Protocol != "" {
+			analysis.ProtocolDistribution[e.Protocol]++
+		}
+
+		// Bidirectional edges
+		if e.Direction == "bidirectional" {
+			analysis.BidirectionalEdges = append(analysis.BidirectionalEdges,
+				srcName+" ↔ "+tgtName)
+		}
+
+		// Track sync/async for chain depth
+		sa := e.SyncAsync
+		if sa == "" {
+			sa = "sync"
+		}
+		edgeSyncAsync[e.Source+"->"+e.Target] = sa
 	}
+
+	// Detect async boundaries (edges where a sync node connects to async edge or vice versa)
+	// and compute sync chain depth
+	analysis.SyncChainDepth = computeSyncChainDepth(g.Nodes, outEdges, edgeSyncAsync)
+	analysis.AsyncBoundaries = detectAsyncBoundaries(g.Edges, nodeByID)
 
 	// Entry points (zero in-edges) and leaf nodes (zero out-edges)
 	for _, n := range g.Nodes {
@@ -212,4 +245,46 @@ func findCycles(nodes []model.GraphNode, out map[string][]string, byID map[strin
 	}
 
 	return cycles
+}
+
+func computeSyncChainDepth(nodes []model.GraphNode, outEdges map[string][]string, edgeSyncAsync map[string]string) int {
+	maxDepth := 0
+	visited := make(map[string]bool)
+
+	var dfs func(nodeID string, depth int)
+	dfs = func(nodeID string, depth int) {
+		if depth > maxDepth {
+			maxDepth = depth
+		}
+		visited[nodeID] = true
+		for _, next := range outEdges[nodeID] {
+			key := nodeID + "->" + next
+			if edgeSyncAsync[key] == "sync" && !visited[next] {
+				dfs(next, depth+1)
+			}
+		}
+		visited[nodeID] = false
+	}
+
+	for _, n := range nodes {
+		dfs(n.ID, 0)
+	}
+
+	return maxDepth
+}
+
+func detectAsyncBoundaries(edges []model.GraphEdge, nodeByID map[string]model.GraphNode) []string {
+	var boundaries []string
+	for _, e := range edges {
+		sa := e.SyncAsync
+		if sa == "" {
+			sa = "sync"
+		}
+		if sa == "async" && e.Protocol != "" {
+			srcName := nodeByID[e.Source].Name
+			tgtName := nodeByID[e.Target].Name
+			boundaries = append(boundaries, srcName+" → "+tgtName+" ("+e.Label+")")
+		}
+	}
+	return boundaries
 }

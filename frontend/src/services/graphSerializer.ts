@@ -3,6 +3,7 @@ import type {
   ArchitectureEdge,
   GraphState,
   SerializedNode,
+  SerializedEdge,
 } from '../types/graph'
 
 export function serializeGraph(
@@ -23,11 +24,23 @@ export function serializeGraph(
       }
       return serialized
     }),
-    edges: edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.data?.label ?? '',
-    })),
+    edges: edges.map((edge) => {
+      const serialized: SerializedEdge = {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: edge.data?.label ?? '',
+      }
+      if (edge.data?.protocol) {
+        serialized.protocol = edge.data.protocol as string
+      }
+      if (edge.data?.direction && edge.data.direction !== 'oneWay') {
+        serialized.direction = edge.data.direction as string
+      }
+      if (edge.data?.syncAsync && edge.data.syncAsync !== 'sync') {
+        serialized.syncAsync = edge.data.syncAsync as string
+      }
+      return serialized
+    }),
   }
 }

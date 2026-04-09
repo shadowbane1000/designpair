@@ -20,8 +20,11 @@ type Position struct {
 }
 
 type GraphEdge struct {
-	ID     string `json:"id"`
-	Source string `json:"source"`
-	Target string `json:"target"`
-	Label  string `json:"label"`
+	ID        string `json:"id"`
+	Source    string `json:"source"`
+	Target   string `json:"target"`
+	Label     string `json:"label"`
+	Protocol  string `json:"protocol,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	SyncAsync string `json:"syncAsync,omitempty"`
 }

@@ -5,6 +5,7 @@ import { Palette } from './components/Palette/Palette'
 import { DebugPanel } from './components/DebugPanel/DebugPanel'
 import { ChatPanel, type ChatMessage } from './components/ChatPanel/ChatPanel'
 import { ConnectionStatus } from './components/ConnectionStatus/ConnectionStatus'
+import { EdgeContextMenu } from './components/EdgeContextMenu/EdgeContextMenu'
 import { useGraphState } from './hooks/useGraphState'
 import { useWebSocket } from './hooks/useWebSocket'
 import type { WSMessage } from './types/websocket'
@@ -16,6 +17,11 @@ function AppContent() {
   const graphState = useGraphState()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null)
+
+  const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => {
+    setEdgeMenu({ edgeId: edge.id, x: _event.clientX, y: _event.clientY })
+  }, [])
   const streamBufferRef = useRef('')
   const rafRef = useRef<number | null>(null)
   const currentMessageIdRef = useRef<string | null>(null)
@@ -145,7 +151,7 @@ function AppContent() {
       </header>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Palette />
-        <Canvas graphState={graphState} />
+        <Canvas graphState={graphState} onEdgeClick={handleEdgeClick} />
         <ChatPanel
           messages={messages}
           isStreaming={isStreaming}
@@ -154,6 +160,25 @@ function AppContent() {
         />
         <DebugPanel graphState={graphState.graphState} />
       </div>
+      {edgeMenu && (() => {
+        const edge = graphState.edges.find((e) => e.id === edgeMenu.edgeId)
+        if (!edge) return null
+        return (
+          <EdgeContextMenu
+            edgeId={edgeMenu.edgeId}
+            x={edgeMenu.x}
+            y={edgeMenu.y}
+            currentProtocol={edge.data?.protocol}
+            currentDirection={edge.data?.direction ?? 'oneWay'}
+            currentSyncAsync={edge.data?.syncAsync ?? 'sync'}
+            onSelectProtocol={graphState.updateEdgeProtocol}
+            onToggleDirection={graphState.toggleEdgeDirection}
+            onReverse={graphState.reverseEdge}
+            onToggleSyncAsync={graphState.toggleSyncAsync}
+            onClose={() => { setEdgeMenu(null) }}
+          />
+        )
+      })()}
     </div>
   )
 }

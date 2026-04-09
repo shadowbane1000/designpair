@@ -129,3 +129,9 @@
   border-color: #f59e0b;
   background: #fffbeb;
 }
+
+/* Dual handles overlay — source and target at same position appear as one dot */
+.handle-overlay {
+  width: 8px;
+  height: 8px;
+}
