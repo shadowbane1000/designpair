@@ -58,7 +58,7 @@ func main() {
 
 type noopClient struct{}
 
-func (n *noopClient) StreamAnalysis(_ context.Context, _, _ string, onChunk func(string)) error {
+func (n *noopClient) StreamAnalysis(_ context.Context, _ string, _ []llm.ConversationTurn, onChunk func(string)) error {
 	onChunk("AI features are unavailable — ANTHROPIC_API_KEY is not configured.")
 	return nil
 }

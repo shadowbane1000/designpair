@@ -2,6 +2,8 @@
 
 Interactive architecture canvas with a real-time AI collaborator.
 
+**Live demo:** [designpair.colberts.us](https://designpair.colberts.us)
+
 You diagram your system by dragging and connecting components, and the AI engages as you build — asking probing questions, flagging risks, and suggesting improvements. It's a thinking partner for architectural work, not a scoring tool or diagram generator.
 
 ## Why This Project Exists

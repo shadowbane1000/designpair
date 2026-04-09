@@ -9,7 +9,8 @@ import { useGraphState } from './hooks/useGraphState'
 import { useWebSocket } from './hooks/useWebSocket'
 import type { WSMessage } from './types/websocket'
 
-const WS_URL = `ws://${window.location.hostname}:8081/ws`
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+const WS_URL = `${wsProtocol}//${window.location.host}/ws`
 
 function AppContent() {
   const graphState = useGraphState()
@@ -46,7 +47,6 @@ function AppContent() {
           break
         }
         case 'ai_done': {
-          // Final flush
           if (rafRef.current !== null) {
             cancelAnimationFrame(rafRef.current)
             rafRef.current = null
@@ -98,7 +98,7 @@ function AppContent() {
 
   const { status, send } = useWebSocket({ url: WS_URL, onMessage })
 
-  const handleAskAI = useCallback(() => {
+  const handleChatSubmit = useCallback((text: string) => {
     if (status !== 'connected' || isStreaming) return
 
     // Add user message
@@ -107,7 +107,7 @@ function AppContent() {
       {
         id: crypto.randomUUID(),
         role: 'user',
-        content: 'Analyze my architecture',
+        content: text,
         status: 'complete',
         timestamp: Date.now(),
       },
@@ -131,8 +131,8 @@ function AppContent() {
     streamBufferRef.current = ''
 
     send({
-      type: 'analyze_request',
-      payload: { graphState: graphState.graphState },
+      type: 'chat_message',
+      payload: { text, graphState: graphState.graphState },
       requestId: aiMessageId,
     })
   }, [status, isStreaming, send, graphState.graphState])
@@ -141,31 +141,17 @@ function AppContent() {
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>DesignPair</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            onClick={handleAskAI}
-            disabled={status !== 'connected' || isStreaming}
-            data-testid="ask-ai-button"
-            style={{
-              padding: '6px 16px',
-              borderRadius: 6,
-              border: 'none',
-              background: status === 'connected' && !isStreaming ? '#3b82f6' : '#9ca3af',
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: status === 'connected' && !isStreaming ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {isStreaming ? 'Analyzing...' : 'Ask AI'}
-          </button>
-          <ConnectionStatus status={status} />
-        </div>
+        <ConnectionStatus status={status} />
       </header>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Palette />
         <Canvas graphState={graphState} />
-        <ChatPanel messages={messages} isStreaming={isStreaming} />
+        <ChatPanel
+          messages={messages}
+          isStreaming={isStreaming}
+          isConnected={status === 'connected'}
+          onSubmit={handleChatSubmit}
+        />
         <DebugPanel graphState={graphState.graphState} />
       </div>
     </div>

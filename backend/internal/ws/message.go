@@ -19,6 +19,11 @@ type AnalyzeRequest struct {
 	GraphState model.GraphState `json:"graphState"`
 }
 
+type ChatMessagePayload struct {
+	Text       string           `json:"text"`
+	GraphState model.GraphState `json:"graphState"`
+}
+
 // Server → Client payloads
 
 type AIChunkPayload struct {

@@ -12,7 +12,7 @@ import (
 
 // Client is the interface for LLM interaction.
 type Client interface {
-	StreamAnalysis(ctx context.Context, systemPrompt, userPrompt string, onChunk func(text string)) error
+	StreamAnalysis(ctx context.Context, systemPrompt string, turns []ConversationTurn, onChunk func(text string)) error
 }
 
 // AnthropicClient implements Client using the Anthropic API.
@@ -41,19 +41,31 @@ func NewAnthropicClient() (*AnthropicClient, error) {
 	}, nil
 }
 
-// StreamAnalysis sends a prompt to Claude and calls onChunk for each text delta.
-func (c *AnthropicClient) StreamAnalysis(ctx context.Context, systemPrompt, userPrompt string, onChunk func(text string)) error {
+// StreamAnalysis sends conversation turns to Claude and calls onChunk for each text delta.
+func (c *AnthropicClient) StreamAnalysis(ctx context.Context, systemPrompt string, turns []ConversationTurn, onChunk func(text string)) error {
+	// Convert generic turns to Anthropic message params
+	messages := make([]anthropic.MessageParam, 0, len(turns))
+	for _, turn := range turns {
+		switch turn.Role {
+		case "user":
+			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(turn.Content)))
+		case "assistant":
+			messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(turn.Content)))
+		}
+	}
+
+	// Ensure at least one user message
+	if len(messages) == 0 {
+		messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock("Analyze my architecture")))
+	}
+
 	stream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:     c.model,
 		MaxTokens: 4096,
 		System: []anthropic.TextBlockParam{
 			{Text: systemPrompt},
 		},
-		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(
-				anthropic.NewTextBlock(userPrompt),
-			),
-		},
+		Messages: messages,
 	})
 	defer stream.Close()
 

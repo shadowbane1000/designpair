@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/shadowbane1000/designpair/internal/llm"
 	"github.com/shadowbane1000/designpair/internal/model"
 )
 
@@ -16,7 +17,7 @@ type mockLLMClient struct {
 	err    error
 }
 
-func (m *mockLLMClient) StreamAnalysis(_ context.Context, _, _ string, onChunk func(string)) error {
+func (m *mockLLMClient) StreamAnalysis(_ context.Context, _ string, _ []llm.ConversationTurn, onChunk func(string)) error {
 	for _, chunk := range m.chunks {
 		onChunk(chunk)
 	}

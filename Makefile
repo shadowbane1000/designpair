@@ -36,7 +36,7 @@ backend-test:
 build-all: frontend-build backend-build
 
 frontend-build:
-	docker build -t designpair-frontend:latest frontend/
+	docker build -t designpair-frontend:latest -f frontend/Dockerfile .
 
 backend-build:
 	docker build -t designpair-backend:latest backend/
