@@ -73,7 +73,7 @@ export function EdgeContextMenu({
               key={p.protocol}
               className={`ecm-protocol-btn ${currentProtocol === p.protocol ? 'active' : ''}`}
               style={{ borderColor: p.color, color: currentProtocol === p.protocol ? '#fff' : p.color, background: currentProtocol === p.protocol ? p.color : 'transparent' }}
-              onClick={() => { onSelectProtocol(edgeId, p.protocol, p.label) }}
+              onClick={() => { onSelectProtocol(edgeId, p.protocol, p.label); setCustomText('') }}
             >
               {p.label}
             </button>

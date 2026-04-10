@@ -55,6 +55,21 @@ describe('EdgeContextMenu custom protocol', () => {
     expect(input).toHaveValue('amqp')
   })
 
+  it('clears custom input when a predefined protocol is clicked', () => {
+    render(
+      <EdgeContextMenu {...defaultProps} />,
+    )
+
+    const input = screen.getByPlaceholderText('Custom...')
+    fireEvent.change(input, { target: { value: 'amqp' } })
+    expect(input).toHaveValue('amqp')
+
+    const httpBtn = screen.getByText('HTTP')
+    fireEvent.click(httpBtn)
+
+    expect(input).toHaveValue('')
+  })
+
   it('does not pre-fill custom input for predefined protocols', () => {
     render(
       <EdgeContextMenu
