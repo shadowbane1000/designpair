@@ -70,6 +70,23 @@ describe('layoutNewNodes', () => {
     // (exact value depends on dagre's layout algorithm)
   })
 
+  it('positions pending nodes relative to committed nodes actual positions', () => {
+    // Place committed node far from origin to verify offset is applied
+    const committed = makeNode('a', 500, 500)
+    const pending = makeNode('b', 0, 0, 'pendingAdd')
+    const nodes = [committed, pending]
+    const edges = [makeEdge('e1', 'a', 'b')]
+
+    const result = layoutNewNodes(nodes, edges)
+
+    const nodeB = result.find((n) => n.id === 'b')
+    expect(nodeB).toBeDefined()
+    // Pending node should be near the committed node (within ~300px),
+    // not at dagre's origin-based position
+    expect(Math.abs(nodeB!.position.x - 500)).toBeLessThan(300)
+    expect(Math.abs(nodeB!.position.y - 500)).toBeLessThan(300)
+  })
+
   it('returns nodes unchanged when no pending-add nodes exist', () => {
     const nodes = [makeNode('a', 50, 50), makeNode('b', 200, 200)]
     const edges = [makeEdge('e1', 'a', 'b')]

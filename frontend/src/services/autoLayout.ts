@@ -45,8 +45,11 @@ export function computeLayout(
  * Apply dagre layout only to newly added nodes (pendingAdd),
  * integrating them into the existing layout without moving committed nodes.
  *
- * Strategy: run dagre on all nodes, then only update positions of pending-add nodes.
- * Committed nodes keep their current positions.
+ * Strategy: run dagre on all nodes to get ideal relative positions, compute the
+ * average offset between dagre positions and actual positions for committed nodes,
+ * then apply dagre positions shifted by that offset to pending-add nodes. This
+ * places new nodes in topologically sensible positions relative to the existing
+ * graph layout rather than in dagre's absolute coordinate space.
  */
 export function layoutNewNodes(
   nodes: ArchitectureNode[],
@@ -57,12 +60,30 @@ export function layoutNewNodes(
   )
   if (pendingIds.size === 0) return nodes
 
-  const positions = computeLayout(nodes, edges)
+  const dagrePositions = computeLayout(nodes, edges)
+
+  // Compute average offset between actual and dagre positions for committed nodes
+  let offsetX = 0
+  let offsetY = 0
+  let count = 0
+  for (const node of nodes) {
+    if (pendingIds.has(node.id)) continue
+    const dagrePos = dagrePositions.get(node.id)
+    if (!dagrePos) continue
+    offsetX += node.position.x - dagrePos.x
+    offsetY += node.position.y - dagrePos.y
+    count++
+  }
+
+  if (count > 0) {
+    offsetX /= count
+    offsetY /= count
+  }
 
   return nodes.map((node) => {
     if (!pendingIds.has(node.id)) return node
-    const pos = positions.get(node.id)
+    const pos = dagrePositions.get(node.id)
     if (!pos) return node
-    return { ...node, position: pos }
+    return { ...node, position: { x: pos.x + offsetX, y: pos.y + offsetY } }
   })
 }
