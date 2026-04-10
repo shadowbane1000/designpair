@@ -63,15 +63,15 @@ describe('layoutNewNodes', () => {
     const nodeA = result.find((n) => n.id === 'a')
     expect(nodeA?.position).toEqual({ x: 50, y: 50 })
 
-    // Pending node should have been repositioned (not at 0,0)
+    // Pending node should be near its neighbor (committed node at 50,50)
     const nodeB = result.find((n) => n.id === 'b')
     expect(nodeB).toBeDefined()
-    // dagre assigns a layout position; it should differ from the original 0,0
-    // (exact value depends on dagre's layout algorithm)
+    expect(nodeB!.position.x).toBe(50) // same x as neighbor
+    expect(nodeB!.position.y).toBe(250) // 200px below neighbor
   })
 
-  it('positions pending nodes relative to committed nodes actual positions', () => {
-    // Place committed node far from origin to verify offset is applied
+  it('positions pending nodes near connected neighbors regardless of canvas position', () => {
+    // Place committed node far from origin
     const committed = makeNode('a', 500, 500)
     const pending = makeNode('b', 0, 0, 'pendingAdd')
     const nodes = [committed, pending]
@@ -81,10 +81,45 @@ describe('layoutNewNodes', () => {
 
     const nodeB = result.find((n) => n.id === 'b')
     expect(nodeB).toBeDefined()
-    // Pending node should be near the committed node (within ~300px),
-    // not at dagre's origin-based position
-    expect(Math.abs(nodeB!.position.x - 500)).toBeLessThan(300)
-    expect(Math.abs(nodeB!.position.y - 500)).toBeLessThan(300)
+    // Should be placed near the neighbor at (500, 500), offset 200px below
+    expect(nodeB!.position.x).toBe(500)
+    expect(nodeB!.position.y).toBe(700)
+  })
+
+  it('positions unconnected pending nodes near center of existing nodes', () => {
+    const nodes = [
+      makeNode('a', 100, 100),
+      makeNode('b', 300, 100),
+      makeNode('c', 0, 0, 'pendingAdd'),
+    ]
+    const edges: ArchitectureEdge[] = []
+
+    const result = layoutNewNodes(nodes, edges)
+
+    const nodeC = result.find((n) => n.id === 'c')
+    expect(nodeC).toBeDefined()
+    // Center x of existing nodes is (100+300)/2 = 200
+    expect(nodeC!.position.x).toBe(200)
+    // Should be placed below the max y of existing nodes (100) + 200
+    expect(nodeC!.position.y).toBe(300)
+  })
+
+  it('avoids overlapping when multiple pending nodes target the same neighbor', () => {
+    const committed = makeNode('a', 200, 200)
+    const pending1 = makeNode('b', 0, 0, 'pendingAdd')
+    const pending2 = makeNode('c', 0, 0, 'pendingAdd')
+    const nodes = [committed, pending1, pending2]
+    const edges = [makeEdge('e1', 'a', 'b'), makeEdge('e2', 'a', 'c')]
+
+    const result = layoutNewNodes(nodes, edges)
+
+    const nodeB = result.find((n) => n.id === 'b')
+    const nodeC = result.find((n) => n.id === 'c')
+    expect(nodeB).toBeDefined()
+    expect(nodeC).toBeDefined()
+    // They should not be at the same position
+    const samePos = nodeB!.position.x === nodeC!.position.x && nodeB!.position.y === nodeC!.position.y
+    expect(samePos).toBe(false)
   })
 
   it('returns nodes unchanged when no pending-add nodes exist', () => {

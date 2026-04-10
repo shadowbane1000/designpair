@@ -41,15 +41,20 @@ export function computeLayout(
   return positions
 }
 
+const NEIGHBOR_OFFSET = 200
+
 /**
- * Apply dagre layout only to newly added nodes (pendingAdd),
- * integrating them into the existing layout without moving committed nodes.
+ * Position newly added nodes (pendingAdd) based on their connected neighbors.
  *
- * Strategy: run dagre on all nodes to get ideal relative positions, compute the
- * average offset between dagre positions and actual positions for committed nodes,
- * then apply dagre positions shifted by that offset to pending-add nodes. This
- * places new nodes in topologically sensible positions relative to the existing
- * graph layout rather than in dagre's absolute coordinate space.
+ * For each pending node:
+ * - If it connects to existing nodes, place it at the average position of those
+ *   neighbors, offset 200px below (or in the direction with the most open space).
+ * - If it has no connections yet, place it near the center of all existing nodes.
+ *
+ * This is simpler and more predictable than running dagre on the full graph,
+ * which produces positions in an absolute coordinate space that doesn't match
+ * the user's current canvas layout. Dagre full-layout is still used for
+ * example/import loads where we control all positions.
  */
 export function layoutNewNodes(
   nodes: ArchitectureNode[],
@@ -60,30 +65,76 @@ export function layoutNewNodes(
   )
   if (pendingIds.size === 0) return nodes
 
-  const dagrePositions = computeLayout(nodes, edges)
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  const existingNodes = nodes.filter((n) => !pendingIds.has(n.id))
 
-  // Compute average offset between actual and dagre positions for committed nodes
-  let offsetX = 0
-  let offsetY = 0
-  let count = 0
-  for (const node of nodes) {
-    if (pendingIds.has(node.id)) continue
-    const dagrePos = dagrePositions.get(node.id)
-    if (!dagrePos) continue
-    offsetX += node.position.x - dagrePos.x
-    offsetY += node.position.y - dagrePos.y
-    count++
+  // Center of existing nodes as fallback
+  let centerX = 250
+  let centerY = 150
+  if (existingNodes.length > 0) {
+    centerX = existingNodes.reduce((s, n) => s + n.position.x, 0) / existingNodes.length
+    centerY = existingNodes.reduce((s, n) => s + n.position.y, 0) / existingNodes.length
   }
 
-  if (count > 0) {
-    offsetX /= count
-    offsetY /= count
-  }
+  // Track positions we've already assigned to avoid overlap
+  const usedPositions = existingNodes.map((n) => n.position)
 
   return nodes.map((node) => {
     if (!pendingIds.has(node.id)) return node
-    const pos = dagrePositions.get(node.id)
-    if (!pos) return node
-    return { ...node, position: { x: pos.x + offsetX, y: pos.y + offsetY } }
+
+    // Find connected neighbors (from edges)
+    const neighborPositions: { x: number; y: number }[] = []
+    for (const edge of edges) {
+      if (edge.source === node.id) {
+        const neighbor = nodeMap.get(edge.target)
+        if (neighbor && !pendingIds.has(neighbor.id)) {
+          neighborPositions.push(neighbor.position)
+        }
+      }
+      if (edge.target === node.id) {
+        const neighbor = nodeMap.get(edge.source)
+        if (neighbor && !pendingIds.has(neighbor.id)) {
+          neighborPositions.push(neighbor.position)
+        }
+      }
+    }
+
+    let pos: { x: number; y: number }
+    if (neighborPositions.length > 0) {
+      // Average position of connected neighbors, offset below
+      const avgX = neighborPositions.reduce((s, p) => s + p.x, 0) / neighborPositions.length
+      const avgY = neighborPositions.reduce((s, p) => s + p.y, 0) / neighborPositions.length
+      pos = { x: avgX, y: avgY + NEIGHBOR_OFFSET }
+    } else {
+      // No connections — place near center, below existing nodes
+      const maxY = existingNodes.length > 0
+        ? Math.max(...existingNodes.map((n) => n.position.y))
+        : centerY
+      pos = { x: centerX, y: maxY + NEIGHBOR_OFFSET }
+    }
+
+    // Nudge to avoid overlapping with existing or previously placed pending nodes
+    pos = avoidOverlap(pos, usedPositions)
+    usedPositions.push(pos)
+
+    return { ...node, position: pos }
   })
+}
+
+/**
+ * Nudge a position horizontally if it overlaps with any existing position.
+ */
+function avoidOverlap(
+  pos: { x: number; y: number },
+  used: { x: number; y: number }[],
+): { x: number; y: number } {
+  let { x } = pos
+  const { y } = pos
+  const threshold = NODE_WIDTH + 20
+  let attempts = 0
+  while (attempts < 10 && used.some((p) => Math.abs(p.x - x) < threshold && Math.abs(p.y - y) < NODE_HEIGHT + 20)) {
+    x += NODE_WIDTH + 40
+    attempts++
+  }
+  return { x, y }
 }
