@@ -262,6 +262,20 @@ function AppContent() {
           currentMessageIdRef.current = null
           break
         }
+        case 'conversation_summarized': {
+          const sumPayload = msg.payload as { originalTurnCount: number; retainedTurnCount: number }
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: 'system',
+              content: `Earlier messages summarized (${String(sumPayload.originalTurnCount)} turns compressed to ${String(sumPayload.retainedTurnCount)})`,
+              status: 'complete',
+              timestamp: Date.now(),
+            },
+          ])
+          break
+        }
       }
     },
     [flushBuffer, addSuggestion],
