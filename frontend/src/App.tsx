@@ -15,7 +15,8 @@ import type { WSMessage, ValidationErrorPayload } from './types/websocket'
 import type { ExampleDiagram } from './data/examples'
 
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-const WS_URL = `${wsProtocol}//${window.location.host}/ws`
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '')
+const WS_URL = `${wsProtocol}//${window.location.host}${basePath}/ws`
 
 function AppContent() {
   const graphState = useGraphState()
