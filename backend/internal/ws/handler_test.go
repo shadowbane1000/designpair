@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -579,6 +580,162 @@ func TestValidateToolCall_AddNode_MissingType(t *testing.T) {
 	if result == "success" {
 		t.Error("add_node without type should fail")
 	}
+}
+
+func TestValidateToolCall_AddNode_NameTooLong(t *testing.T) {
+	gs := model.GraphState{}
+
+	longName := strings.Repeat("x", maxNodeNameLen+1)
+	input := fmt.Sprintf(`{"type":"service","name":"%s"}`, longName)
+	result := validateToolCall("add_node", json.RawMessage(input), gs)
+	if result == "success" {
+		t.Errorf("add_node with name of %d chars should fail", len(longName))
+	}
+	if !strings.Contains(result, "maximum length") {
+		t.Errorf("expected error about maximum length, got %q", result)
+	}
+}
+
+func TestValidateToolCall_AddNode_NameAtLimit(t *testing.T) {
+	gs := model.GraphState{}
+
+	exactName := strings.Repeat("x", maxNodeNameLen)
+	input := fmt.Sprintf(`{"type":"service","name":"%s"}`, exactName)
+	result := validateToolCall("add_node", json.RawMessage(input), gs)
+	if result != "success" {
+		t.Errorf("add_node with name of exactly %d chars should succeed, got %q", maxNodeNameLen, result)
+	}
+}
+
+func TestValidateToolCall_AddNode_InvalidType(t *testing.T) {
+	gs := model.GraphState{}
+
+	tests := []struct {
+		name    string
+		nType   string
+		wantErr bool
+	}{
+		{name: "valid type service", nType: "service", wantErr: false},
+		{name: "valid type databaseSql", nType: "databaseSql", wantErr: false},
+		{name: "valid type cdn", nType: "cdn", wantErr: false},
+		{name: "invalid type unknown", nType: "unknown", wantErr: true},
+		{name: "invalid type empty-ish", nType: "banana", wantErr: true},
+		{name: "case sensitive check", nType: "Service", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := fmt.Sprintf(`{"type":"%s","name":"TestNode"}`, tt.nType)
+			result := validateToolCall("add_node", json.RawMessage(input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("add_node type=%q: got %q, wantErr=%v", tt.nType, result, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateToolCall_AddNode_AnnotationTooLong(t *testing.T) {
+	gs := model.GraphState{}
+
+	longAnnotation := strings.Repeat("a", maxAnnotationLen+1)
+	input := fmt.Sprintf(`{"type":"service","name":"API","annotation":"%s"}`, longAnnotation)
+	result := validateToolCall("add_node", json.RawMessage(input), gs)
+	if result == "success" {
+		t.Error("add_node with annotation exceeding max length should fail")
+	}
+	if !strings.Contains(result, "annotation") {
+		t.Errorf("expected error about annotation, got %q", result)
+	}
+}
+
+func TestValidateToolCall_ModifyNode_NewNameTooLong(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+
+	longName := strings.Repeat("y", maxNodeNameLen+1)
+	input := fmt.Sprintf(`{"name":"API","new_name":"%s"}`, longName)
+	result := validateToolCall("modify_node", json.RawMessage(input), gs)
+	if result == "success" {
+		t.Errorf("modify_node with new_name of %d chars should fail", len(longName))
+	}
+	if !strings.Contains(result, "maximum length") {
+		t.Errorf("expected error about maximum length, got %q", result)
+	}
+}
+
+func TestValidateToolCall_ModifyNode_AnnotationTooLong(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+
+	longAnnotation := strings.Repeat("b", maxAnnotationLen+1)
+	input := fmt.Sprintf(`{"name":"API","annotation":"%s"}`, longAnnotation)
+	result := validateToolCall("modify_node", json.RawMessage(input), gs)
+	if result == "success" {
+		t.Error("modify_node with annotation exceeding max length should fail")
+	}
+}
+
+func TestHandler_ChatMessageTooLong(t *testing.T) {
+	mock := &mockLLMClient{
+		chunks: []string{"Should not reach here"},
+	}
+	handler := NewHandler(mock, ratelimit.New())
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + server.URL[len("http"):]
+	ctx := context.Background()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial error: %v", err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+
+	longMessage := strings.Repeat("a", maxChatMessageLen+1)
+	chatPayload, _ := json.Marshal(ChatMessagePayload{
+		Text: longMessage,
+		GraphState: model.GraphState{
+			Nodes: []model.GraphNode{
+				{ID: "n1", Type: "service", Name: "API"},
+			},
+		},
+	})
+
+	req := WSMessage{
+		Type:      "chat_message",
+		Payload:   chatPayload,
+		RequestID: "test-long-msg",
+	}
+	if err := wsjson.Write(ctx, conn, req); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+
+	var msg WSMessage
+	if err := wsjson.Read(ctx, conn, &msg); err != nil {
+		t.Fatalf("read error: %v", err)
+	}
+	if msg.Type != "validation_error" {
+		t.Fatalf("expected validation_error, got %s", msg.Type)
+	}
+
+	var payload ValidationErrorPayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if payload.Code != "message_too_long" {
+		t.Errorf("expected code message_too_long, got %s", payload.Code)
+	}
+
+	conn.Close(websocket.StatusNormalClosure, "done")
 }
 
 func TestWildcardEdgeMatching_ThreeEdges(t *testing.T) {

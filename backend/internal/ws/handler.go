@@ -19,6 +19,31 @@ import (
 )
 
 const maxNodes = 50
+const maxNodeNameLen = 100
+const maxAnnotationLen = 500
+const maxChatMessageLen = 200
+
+// validNodeTypes is the whitelist of accepted component types.
+var validNodeTypes = map[string]bool{
+	"service":            true,
+	"apiGateway":         true,
+	"loadBalancer":       true,
+	"serverlessFunction": true,
+	"databaseSql":        true,
+	"databaseNosql":      true,
+	"cache":              true,
+	"objectStorage":      true,
+	"messageQueue":       true,
+	"eventBus":           true,
+	"streamProcessor":    true,
+	"cdn":                true,
+	"dns":                true,
+	"firewall":           true,
+	"webClient":          true,
+	"mobileClient":       true,
+	"iotClient":          true,
+	"externalApi":        true,
+}
 
 // Handler manages WebSocket connections.
 type Handler struct {
@@ -96,6 +121,13 @@ func (h *Handler) handleChatMessage(ctx context.Context, conn *websocket.Conn, m
 	userText := strings.TrimSpace(req.Text)
 	if userText == "" {
 		userText = "Analyze my architecture"
+	}
+
+	if len(userText) > maxChatMessageLen {
+		sendValidationError(ctx, conn, msg.RequestID, "message_too_long",
+			fmt.Sprintf("Message exceeds maximum length of %d characters. Please shorten your message.", maxChatMessageLen),
+			nil, nil)
+		return
 	}
 
 	h.processAnalysisWithPending(ctx, conn, msg.RequestID, userText, req.GraphState, req.PendingSuggestions, conversation, clientIP)
@@ -558,8 +590,9 @@ func validateToolCall(tool string, input json.RawMessage, gs model.GraphState) s
 
 func validateAddNode(input json.RawMessage, gs model.GraphState) string {
 	var params struct {
-		Type string `json:"type"`
-		Name string `json:"name"`
+		Type       string `json:"type"`
+		Name       string `json:"name"`
+		Annotation string `json:"annotation"`
 	}
 	if err := json.Unmarshal(input, &params); err != nil {
 		return "Error: invalid parameters"
@@ -567,8 +600,17 @@ func validateAddNode(input json.RawMessage, gs model.GraphState) string {
 	if params.Name == "" {
 		return "Error: name is required"
 	}
+	if len(params.Name) > maxNodeNameLen {
+		return fmt.Sprintf("Error: name exceeds maximum length of %d characters", maxNodeNameLen)
+	}
 	if params.Type == "" {
 		return "Error: type is required"
+	}
+	if !validNodeTypes[params.Type] {
+		return fmt.Sprintf("Error: invalid node type %q", params.Type)
+	}
+	if len(params.Annotation) > maxAnnotationLen {
+		return fmt.Sprintf("Error: annotation exceeds maximum length of %d characters", maxAnnotationLen)
 	}
 	for _, n := range gs.Nodes {
 		if n.Name == params.Name {
@@ -605,6 +647,7 @@ func validateModifyNode(input json.RawMessage, gs model.GraphState) string {
 	var params struct {
 		Name         string `json:"name"`
 		NewName      string `json:"new_name"`
+		Annotation   string `json:"annotation"`
 		ReplicaCount *int   `json:"replica_count"`
 	}
 	if err := json.Unmarshal(input, &params); err != nil {
@@ -624,11 +667,17 @@ func validateModifyNode(input json.RawMessage, gs model.GraphState) string {
 		return fmt.Sprintf("Error: node %q not found", params.Name)
 	}
 	if params.NewName != "" {
+		if len(params.NewName) > maxNodeNameLen {
+			return fmt.Sprintf("Error: new name exceeds maximum length of %d characters", maxNodeNameLen)
+		}
 		for _, n := range gs.Nodes {
 			if n.Name == params.NewName && n.Name != params.Name {
 				return fmt.Sprintf("Error: node name %q already exists", params.NewName)
 			}
 		}
+	}
+	if len(params.Annotation) > maxAnnotationLen {
+		return fmt.Sprintf("Error: annotation exceeds maximum length of %d characters", maxAnnotationLen)
 	}
 	if params.ReplicaCount != nil && *params.ReplicaCount < 1 {
 		return "Error: replica_count must be >= 1"

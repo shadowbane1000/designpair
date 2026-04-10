@@ -70,15 +70,17 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 	b.WriteString(fmt.Sprintf("The diagram contains %d component(s) and %d connection(s).\n\n", len(g.Nodes), len(g.Edges)))
 
 	// Components by type
+	// User-supplied content is wrapped in XML delimiter tags to distinguish it
+	// from system instructions, mitigating prompt injection via node names/annotations.
 	b.WriteString("### Components\n")
 	for _, n := range g.Nodes {
 		if n.ReplicaCount > 1 {
-			b.WriteString(fmt.Sprintf("- **%s** (%s, ×%d replicas)", n.Name, n.Type, n.ReplicaCount))
+			b.WriteString(fmt.Sprintf("- <component>%s</component> (%s, ×%d replicas)", n.Name, n.Type, n.ReplicaCount))
 		} else {
-			b.WriteString(fmt.Sprintf("- **%s** (%s)", n.Name, n.Type))
+			b.WriteString(fmt.Sprintf("- <component>%s</component> (%s)", n.Name, n.Type))
 		}
 		if n.Annotation != "" {
-			b.WriteString(fmt.Sprintf(": %s", n.Annotation))
+			b.WriteString(fmt.Sprintf(": <annotation>%s</annotation>", n.Annotation))
 		}
 		b.WriteString("\n")
 	}
@@ -97,9 +99,9 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 			if label == "" {
 				label = "→"
 			} else {
-				label = fmt.Sprintf("→ [%s] →", label)
+				label = fmt.Sprintf("→ [<edge-label>%s</edge-label>] →", label)
 			}
-			b.WriteString(fmt.Sprintf("- %s %s %s\n", nodeByID[e.Source], label, nodeByID[e.Target]))
+			b.WriteString(fmt.Sprintf("- <component>%s</component> %s <component>%s</component>\n", nodeByID[e.Source], label, nodeByID[e.Target]))
 		}
 		b.WriteString("\n")
 	}
@@ -202,14 +204,14 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 	if pending.HasPending() {
 		b.WriteString("### Proposed Changes (Pending Approval)\n")
 		for _, n := range pending.AddNodes {
-			b.WriteString(fmt.Sprintf("- ADD node: **%s** (%s)\n", n.Name, n.Type))
+			b.WriteString(fmt.Sprintf("- ADD node: <component>%s</component> (%s)\n", n.Name, n.Type))
 		}
 		for _, name := range pending.DeleteNodes {
-			b.WriteString(fmt.Sprintf("- DELETE node: **%s**\n", name))
+			b.WriteString(fmt.Sprintf("- DELETE node: <component>%s</component>\n", name))
 		}
 		for _, m := range pending.ModifyNodes {
 			if m.NewName != "" {
-				b.WriteString(fmt.Sprintf("- MODIFY node: **%s** → rename to **%s**\n", m.Name, m.NewName))
+				b.WriteString(fmt.Sprintf("- MODIFY node: <component>%s</component> → rename to <component>%s</component>\n", m.Name, m.NewName))
 			}
 		}
 		for _, e := range pending.AddEdges {
@@ -314,30 +316,30 @@ func BuildAutoAnalyzeUserMessage(g model.GraphState, analysis TopologyAnalysis, 
 		b.WriteString("The user just made the following changes to their architecture:\n\n")
 
 		for _, n := range delta.AddedNodes {
-			b.WriteString(fmt.Sprintf("- **Added** component: %s (%s)\n", n.Name, n.Type))
+			b.WriteString(fmt.Sprintf("- **Added** component: <component>%s</component> (%s)\n", n.Name, n.Type))
 		}
 		for _, n := range delta.RemovedNodes {
-			b.WriteString(fmt.Sprintf("- **Removed** component: %s (%s)\n", n.Name, n.Type))
+			b.WriteString(fmt.Sprintf("- **Removed** component: <component>%s</component> (%s)\n", n.Name, n.Type))
 		}
 		for _, e := range delta.AddedEdges {
 			proto := e.Protocol
 			if proto == "" {
 				proto = "unspecified protocol"
 			}
-			b.WriteString(fmt.Sprintf("- **Added** connection: %s → %s [%s]\n", e.Source, e.Target, proto))
+			b.WriteString(fmt.Sprintf("- **Added** connection: <component>%s</component> → <component>%s</component> [%s]\n", e.Source, e.Target, proto))
 		}
 		for _, e := range delta.RemovedEdges {
 			proto := e.Protocol
 			if proto == "" {
 				proto = "unspecified protocol"
 			}
-			b.WriteString(fmt.Sprintf("- **Removed** connection: %s → %s [%s]\n", e.Source, e.Target, proto))
+			b.WriteString(fmt.Sprintf("- **Removed** connection: <component>%s</component> → <component>%s</component> [%s]\n", e.Source, e.Target, proto))
 		}
 		for _, m := range delta.ModifiedNodes {
-			b.WriteString(fmt.Sprintf("- **Modified** component %s: %s changed from %q to %q\n", m.Name, m.Field, m.OldValue, m.NewValue))
+			b.WriteString(fmt.Sprintf("- **Modified** component <component>%s</component>: %s changed from %q to %q\n", m.Name, m.Field, m.OldValue, m.NewValue))
 		}
 		for _, m := range delta.ModifiedEdges {
-			b.WriteString(fmt.Sprintf("- **Modified** connection %s: %s changed from %q to %q\n", m.Name, m.Field, m.OldValue, m.NewValue))
+			b.WriteString(fmt.Sprintf("- **Modified** connection <component>%s</component>: %s changed from %q to %q\n", m.Name, m.Field, m.OldValue, m.NewValue))
 		}
 
 		b.WriteString("\nPlease comment on these specific changes and their architectural implications.")
