@@ -264,6 +264,10 @@ func TestValidateToolCall(t *testing.T) {
 		{name: "valid modify_edge", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"http","direction":"oneWay","new_protocol":"grpc"}`, wantErr: false},
 		{name: "modify_edge not found", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"sql","new_protocol":"grpc"}`, wantErr: true},
 		{name: "modify_edge wildcard single edge", tool: "modify_edge", input: `{"source":"API","target":"Database","new_protocol":"grpc"}`, wantErr: false},
+		// case-insensitive protocol matching
+		{name: "add_edge duplicate case-insensitive", tool: "add_edge", input: `{"source":"API","target":"Database","protocol":"HTTP"}`, wantErr: true},
+		{name: "delete_edge case-insensitive protocol", tool: "delete_edge", input: `{"source":"API","target":"Database","protocol":"HTTP","direction":"oneWay"}`, wantErr: false},
+		{name: "modify_edge case-insensitive protocol", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"HTTP","direction":"oneWay","new_protocol":"grpc"}`, wantErr: false},
 		// unknown tool
 		{name: "unknown tool", tool: "fly_to_moon", input: `{}`, wantErr: true},
 	}

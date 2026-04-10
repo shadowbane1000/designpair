@@ -663,7 +663,7 @@ func validateAddEdge(input json.RawMessage, gs model.GraphState) string {
 	}
 	for _, e := range gs.Edges {
 		if e.Source == sourceID && e.Target == targetID &&
-			stringOrEmpty(e.Protocol) == params.Protocol &&
+			strings.EqualFold(stringOrEmpty(e.Protocol), params.Protocol) &&
 			directionOrDefault(e.Direction) == direction {
 			return "Error: duplicate edge already exists"
 		}
@@ -718,7 +718,7 @@ func validateModifyEdge(input json.RawMessage, gs model.GraphState) string {
 	if matchedProtocol == "" || matchedDirection == "" {
 		for _, e := range gs.Edges {
 			if e.Source == sourceID && e.Target == targetID {
-				if matchedProtocol == "" || stringOrEmpty(e.Protocol) == matchedProtocol {
+				if matchedProtocol == "" || strings.EqualFold(stringOrEmpty(e.Protocol), matchedProtocol) {
 					if matchedDirection == "" || directionOrDefault(e.Direction) == matchedDirection {
 						matchedProtocol = stringOrEmpty(e.Protocol)
 						matchedDirection = directionOrDefault(e.Direction)
@@ -742,9 +742,9 @@ func validateModifyEdge(input json.RawMessage, gs model.GraphState) string {
 	}
 	for _, e := range gs.Edges {
 		if e.Source == sourceID && e.Target == targetID &&
-			stringOrEmpty(e.Protocol) == newProtocol &&
+			strings.EqualFold(stringOrEmpty(e.Protocol), newProtocol) &&
 			directionOrDefault(e.Direction) == newDirection {
-			if stringOrEmpty(e.Protocol) == matchedProtocol && directionOrDefault(e.Direction) == matchedDirection {
+			if strings.EqualFold(stringOrEmpty(e.Protocol), matchedProtocol) && directionOrDefault(e.Direction) == matchedDirection {
 				continue
 			}
 			return "Error: modification would create duplicate edge"
@@ -771,7 +771,7 @@ func findEdge(gs model.GraphState, source, target, protocol, direction string) s
 		if e.Source != sourceID || e.Target != targetID {
 			continue
 		}
-		if !protocolWild && stringOrEmpty(e.Protocol) != protocol {
+		if !protocolWild && !strings.EqualFold(stringOrEmpty(e.Protocol), protocol) {
 			continue
 		}
 		if !directionWild && directionOrDefault(e.Direction) != direction {
