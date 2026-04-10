@@ -231,3 +231,9 @@
   background: #fffbeb;
   font-weight: 500;
 }
+
+@media (max-width: 768px) {
+  .chat-panel {
+    width: 240px;
+  }
+}

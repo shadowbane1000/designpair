@@ -13,8 +13,10 @@ import { useGraphState } from './hooks/useGraphState'
 import { useSuggestions } from './hooks/useSuggestions'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useAutoAnalyze } from './hooks/useAutoAnalyze'
+import { exportDiagram, parseDiagramFile } from './services/diagramIO'
 import type { WSMessage, ValidationErrorPayload } from './types/websocket'
 import type { ExampleDiagram } from './data/examples'
+import './App.css'
 
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '')
@@ -39,6 +41,8 @@ function AppContent() {
   const [showExamples, setShowExamples] = useState(false)
   const [pendingExample, setPendingExample] = useState<ExampleDiagram | null>(null)
   const [chatInput, setChatInput] = useState('')
+  const [paletteOpen, setPaletteOpen] = useState(true)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [annotationPanel, setAnnotationPanel] = useState<{ nodeId: string; x: number; y: number } | null>(null)
 
   // Derive active annotation panel: auto-hide if target node was removed
@@ -62,6 +66,33 @@ function AppContent() {
     if (pendingStatus && pendingStatus !== 'committed') return
     setEdgeMenu({ edgeId: edge.id, x: _event.clientX, y: _event.clientY })
   }, [])
+
+  const handlePaneClick = useCallback(() => {
+    setEdgeMenu(null)
+  }, [])
+
+  const handleExport = useCallback(() => {
+    exportDiagram(graphState.nodes, graphState.edges)
+  }, [graphState.nodes, graphState.edges])
+
+  const handleImport = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = parseDiagramFile(reader.result as string)
+      if (result) {
+        graphState.loadExample(result.nodes, result.edges)
+      }
+    }
+    reader.readAsText(file)
+    // Reset so the same file can be re-imported
+    e.target.value = ''
+  }, [graphState])
   const canvasHasContent = graphState.nodes.length > 0
 
   const handleExampleSelect = useCallback((example: ExampleDiagram) => {
@@ -372,21 +403,49 @@ function AppContent() {
 
   return (
     <AnnotationProvider onAnnotationClick={handleAnnotationClick}>
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>DesignPair</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div className="app-container">
+      <header className="app-header">
+        <div className="app-header-left">
+          <button
+            className="palette-toggle"
+            onClick={() => { setPaletteOpen((v) => !v) }}
+            data-testid="palette-toggle"
+            title={paletteOpen ? 'Hide palette' : 'Show palette'}
+          >
+            {paletteOpen ? '\u2630' : '\u2630'}
+          </button>
+          <span className="app-title">DesignPair</span>
+        </div>
+        <div className="app-header-actions">
           <button
             onClick={() => { setShowExamples(true) }}
-            style={{
-              padding: '4px 12px', fontSize: 12, fontWeight: 500,
-              background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
-              borderRadius: 4, cursor: 'pointer',
-            }}
+            className="header-btn"
             data-testid="examples-button"
           >
             Examples
           </button>
+          <button
+            onClick={handleExport}
+            className="header-btn"
+            data-testid="export-button"
+          >
+            Export
+          </button>
+          <button
+            onClick={handleImport}
+            className="header-btn"
+            data-testid="import-button"
+          >
+            Import
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+            data-testid="import-file-input"
+          />
           {hasPending && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} data-testid="suggestion-bar">
               <span style={{ fontSize: 12, color: '#6b7280' }}>Pending suggestions</span>
@@ -417,9 +476,9 @@ function AppContent() {
           <ConnectionStatus status={status} />
         </div>
       </header>
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Palette />
-        <Canvas graphState={graphState} onEdgeClick={handleEdgeClick} />
+      <div className="app-body">
+        {paletteOpen && <Palette />}
+        <Canvas graphState={graphState} onEdgeClick={handleEdgeClick} onPaneClick={handlePaneClick} />
         <ChatPanel
           messages={messages}
           isStreaming={isStreaming}

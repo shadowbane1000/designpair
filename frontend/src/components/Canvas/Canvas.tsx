@@ -1,9 +1,19 @@
-import { useCallback } from 'react'
-import { ReactFlow, Background, Controls, useReactFlow, MarkerType, ConnectionMode, type Edge, type Connection } from '@xyflow/react'
+import { useCallback, useRef } from 'react'
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  useReactFlow,
+  MarkerType,
+  ConnectionMode,
+  reconnectEdge,
+  type Edge,
+  type Connection,
+} from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { nodeTypes } from '../NodeTypes'
 import { edgeTypes } from '../EdgeTypes'
-import { componentTypeLabels, type ComponentType } from '../../types/graph'
+import { componentTypeLabels, type ComponentType, type ArchitectureEdge } from '../../types/graph'
 import { useGraphState } from '../../hooks/useGraphState'
 
 const isValidConnection = (connection: Edge | Connection) =>
@@ -12,9 +22,10 @@ const isValidConnection = (connection: Edge | Connection) =>
 interface CanvasProps {
   graphState: ReturnType<typeof useGraphState>
   onEdgeClick?: (event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => void
+  onPaneClick?: () => void
 }
 
-export function Canvas({ graphState, onEdgeClick }: CanvasProps) {
+export function Canvas({ graphState, onEdgeClick, onPaneClick }: CanvasProps) {
   const { screenToFlowPosition } = useReactFlow()
   const {
     nodes,
@@ -22,8 +33,35 @@ export function Canvas({ graphState, onEdgeClick }: CanvasProps) {
     onNodesChange,
     onEdgesChange,
     onConnect,
+    setEdges,
     addNode,
   } = graphState
+
+  // Edge reconnection: track the old edge being reconnected
+  const edgeReconnectSuccessful = useRef(true)
+
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false
+  }, [])
+
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      edgeReconnectSuccessful.current = true
+      setEdges((els) => reconnectEdge(oldEdge, newConnection, els) as ArchitectureEdge[])
+    },
+    [setEdges],
+  )
+
+  const onReconnectEnd = useCallback(
+    (_: MouseEvent | TouchEvent, edge: Edge) => {
+      if (!edgeReconnectSuccessful.current) {
+        // If reconnection was dropped in empty space, delete the edge
+        setEdges((eds) => eds.filter((e) => e.id !== edge.id))
+      }
+      edgeReconnectSuccessful.current = true
+    },
+    [setEdges],
+  )
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -55,6 +93,9 @@ export function Canvas({ graphState, onEdgeClick }: CanvasProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onReconnectStart={onReconnectStart}
+        onReconnect={onReconnect}
+        onReconnectEnd={onReconnectEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'labeled', markerEnd: { type: MarkerType.ArrowClosed } }}
@@ -64,6 +105,7 @@ export function Canvas({ graphState, onEdgeClick }: CanvasProps) {
         onDragOver={onDragOver}
         onDrop={onDrop}
         onEdgeClick={onEdgeClick}
+        onPaneClick={onPaneClick}
         defaultViewport={{ x: 0, y: 0, zoom: 0.75 }}
       >
         <Background />
