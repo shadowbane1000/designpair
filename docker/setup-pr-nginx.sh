@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-time setup: add include directive to designpair.conf for PR preview snippets
+# One-time setup: add include directive and fallback to designpair.conf for PR preview snippets
 # Run this once on the server: ssh lightsail 'bash -s' < docker/setup-pr-nginx.sh
 set -e
 
@@ -15,8 +15,8 @@ if grep -q "designpair-pr" "${CONF}"; then
     exit 0
 fi
 
-# Insert include directive inside the HTTPS server block, after the main location block
-sudo sed -i '/proxy_read_timeout 86400s;/{n;s/}/\n    # PR preview deployments\n    include \/etc\/nginx\/designpair-pr\/*.conf;\n}/}' "${CONF}"
+# Insert include directive and /pr/ 404 fallback inside the HTTPS server block
+sudo sed -i "/proxy_read_timeout 86400s;/{n;s/}/\n    # PR preview deployments\n    include \/etc\/nginx\/designpair-pr\/*.conf;\n\n    # Return 404 for PR paths without an active deployment\n    location \/pr\/ {\n        return 404;\n    }\n}/}" "${CONF}"
 
 sudo nginx -t && sudo systemctl reload nginx
 echo "PR preview nginx setup complete"
