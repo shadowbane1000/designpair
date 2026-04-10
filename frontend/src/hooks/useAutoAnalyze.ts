@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GraphState, GraphDelta } from '../types/graph'
 import { computeDelta, isDeltaEmpty } from '../services/graphDelta'
 
-const DEBOUNCE_MS = 2000
+const DEBOUNCE_MS = 30000
 
 export interface AutoAnalyzeResult {
   graphState: GraphState
