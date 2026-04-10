@@ -514,6 +514,7 @@ function AppContent() {
           isStreaming={isStreaming}
           isConnected={status === 'connected'}
           onSubmit={handleChatSubmit}
+          onResetChat={resetChat}
           turnsRemaining={turnsRemaining}
           inputValue={chatInput}
           onInputChange={setChatInput}
@@ -533,6 +534,7 @@ function AppContent() {
             x={edgeMenu.x}
             y={edgeMenu.y}
             currentProtocol={edge.data?.protocol}
+            currentLabel={edge.data?.label}
             currentDirection={edge.data?.direction ?? 'oneWay'}
             currentSyncAsync={edge.data?.syncAsync ?? 'sync'}
             onSelectProtocol={graphState.updateEdgeProtocol}
