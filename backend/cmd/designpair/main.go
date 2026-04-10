@@ -30,7 +30,19 @@ func main() {
 	}
 
 	limiter := ratelimit.New()
-	srv := server.New(client, limiter)
+
+	var opts []server.Option
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey != "" {
+		model := os.Getenv("CLAUDE_MODEL")
+		if model == "" {
+			model = "claude-sonnet-4-5"
+		}
+		summarizer := llm.NewAnthropicSummarizer(apiKey, model)
+		opts = append(opts, server.WithSummarizer(summarizer))
+	}
+
+	srv := server.New(client, limiter, opts...)
 
 	httpServer := &http.Server{
 		Addr:              ":8081",

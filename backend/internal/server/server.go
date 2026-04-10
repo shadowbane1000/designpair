@@ -13,11 +13,29 @@ type Server struct {
 	mux *http.ServeMux
 }
 
-func New(llmClient llm.Client, limiter *ratelimit.Limiter) *Server {
+// Option configures optional server features.
+type Option func(*serverConfig)
+
+type serverConfig struct {
+	summarizer llm.Summarizer
+}
+
+// WithSummarizer configures conversation summarization for long conversations.
+func WithSummarizer(s llm.Summarizer) Option {
+	return func(c *serverConfig) {
+		c.summarizer = s
+	}
+}
+
+func New(llmClient llm.Client, limiter *ratelimit.Limiter, opts ...Option) *Server {
+	cfg := &serverConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	s := &Server{
 		mux: http.NewServeMux(),
 	}
-	s.routes(llmClient, limiter)
+	s.routes(llmClient, limiter, cfg)
 	return s
 }
 
@@ -25,9 +43,13 @@ func (s *Server) Handler() http.Handler {
 	return s.mux
 }
 
-func (s *Server) routes(llmClient llm.Client, limiter *ratelimit.Limiter) {
+func (s *Server) routes(llmClient llm.Client, limiter *ratelimit.Limiter, cfg *serverConfig) {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
-	s.mux.Handle("/ws", ws.NewHandler(llmClient, limiter))
+	handler := ws.NewHandler(llmClient, limiter)
+	if cfg.summarizer != nil {
+		handler.SetSummarizer(cfg.summarizer)
+	}
+	s.mux.Handle("/ws", handler)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
