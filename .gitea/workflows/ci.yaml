@@ -5,10 +5,12 @@ on:
     branches: ["*"]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, closed]
 
 jobs:
   lint-test-build:
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +96,100 @@ jobs:
             echo "WARNING: Health check did not pass within 60 seconds"
             docker compose logs --tail 20
             exit 1
+          DEPLOY
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+  deploy-pr:
+    runs-on: ubuntu-latest
+    needs: lint-test-build
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get PR number
+        id: pr
+        run: echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker images with PR base path
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+
+          # Build frontend with base path for PR preview
+          docker build \
+            --build-arg VITE_BASE=/pr/${PR_NUM}/ \
+            -t designpair-frontend:pr-${PR_NUM} \
+            -f frontend/Dockerfile.pr .
+
+          docker build \
+            -t designpair-backend:pr-${PR_NUM} \
+            backend/
+
+      - name: Save Docker images
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          docker save designpair-frontend:pr-${PR_NUM} designpair-backend:pr-${PR_NUM} | gzip > /tmp/designpair-pr-images.tar.gz
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H tyler.colberts.us >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload to server
+        run: |
+          scp -i ~/.ssh/deploy_key /tmp/designpair-pr-images.tar.gz ec2-user@tyler.colberts.us:/tmp/designpair-pr-images.tar.gz
+          scp -i ~/.ssh/deploy_key docker-compose.pr.yml ec2-user@tyler.colberts.us:/tmp/docker-compose.pr.yml
+          scp -i ~/.ssh/deploy_key docker/deploy-pr.sh ec2-user@tyler.colberts.us:/tmp/deploy-pr.sh
+
+      - name: Deploy PR preview
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          ssh -i ~/.ssh/deploy_key ec2-user@tyler.colberts.us << DEPLOY
+            set -e
+            gunzip -c /tmp/designpair-pr-images.tar.gz | docker load
+            rm /tmp/designpair-pr-images.tar.gz
+            chmod +x /tmp/deploy-pr.sh
+            /tmp/deploy-pr.sh ${PR_NUM}
+          DEPLOY
+
+      - name: Comment PR with preview URL
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          # Use Gitea API to comment on the PR
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITEA_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": \"Preview deployed at https://designpair.colberts.us/pr/${PR_NUM}/\"}" \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/issues/${PR_NUM}/comments" || true
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+  teardown-pr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H tyler.colberts.us >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Teardown PR preview
+        run: |
+          PR_NUM=${{ github.event.pull_request.number }}
+          scp -i ~/.ssh/deploy_key docker/teardown-pr.sh ec2-user@tyler.colberts.us:/tmp/teardown-pr.sh
+          ssh -i ~/.ssh/deploy_key ec2-user@tyler.colberts.us << DEPLOY
+            chmod +x /tmp/teardown-pr.sh
+            /tmp/teardown-pr.sh ${PR_NUM}
           DEPLOY
 
       - name: Cleanup SSH key
