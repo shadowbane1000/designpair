@@ -65,9 +65,9 @@ describe('layoutNewNodes', () => {
 
     // Pending node should be near its neighbor (committed node at 50,50)
     const nodeB = result.find((n) => n.id === 'b')
-    expect(nodeB).toBeDefined()
-    expect(nodeB!.position.x).toBe(50) // same x as neighbor
-    expect(nodeB!.position.y).toBe(250) // 200px below neighbor
+    if (!nodeB) throw new Error('nodeB not found')
+    expect(nodeB.position.x).toBe(50) // same x as neighbor
+    expect(nodeB.position.y).toBe(250) // 200px below neighbor
   })
 
   it('positions pending nodes near connected neighbors regardless of canvas position', () => {
@@ -80,10 +80,10 @@ describe('layoutNewNodes', () => {
     const result = layoutNewNodes(nodes, edges)
 
     const nodeB = result.find((n) => n.id === 'b')
-    expect(nodeB).toBeDefined()
+    if (!nodeB) throw new Error('nodeB not found')
     // Should be placed near the neighbor at (500, 500), offset 200px below
-    expect(nodeB!.position.x).toBe(500)
-    expect(nodeB!.position.y).toBe(700)
+    expect(nodeB.position.x).toBe(500)
+    expect(nodeB.position.y).toBe(700)
   })
 
   it('positions unconnected pending nodes near center of existing nodes', () => {
@@ -97,11 +97,11 @@ describe('layoutNewNodes', () => {
     const result = layoutNewNodes(nodes, edges)
 
     const nodeC = result.find((n) => n.id === 'c')
-    expect(nodeC).toBeDefined()
+    if (!nodeC) throw new Error('nodeC not found')
     // Center x of existing nodes is (100+300)/2 = 200
-    expect(nodeC!.position.x).toBe(200)
+    expect(nodeC.position.x).toBe(200)
     // Should be placed below the max y of existing nodes (100) + 200
-    expect(nodeC!.position.y).toBe(300)
+    expect(nodeC.position.y).toBe(300)
   })
 
   it('avoids overlapping when multiple pending nodes target the same neighbor', () => {
@@ -115,10 +115,10 @@ describe('layoutNewNodes', () => {
 
     const nodeB = result.find((n) => n.id === 'b')
     const nodeC = result.find((n) => n.id === 'c')
-    expect(nodeB).toBeDefined()
-    expect(nodeC).toBeDefined()
+    if (!nodeB) throw new Error('nodeB not found')
+    if (!nodeC) throw new Error('nodeC not found')
     // They should not be at the same position
-    const samePos = nodeB!.position.x === nodeC!.position.x && nodeB!.position.y === nodeC!.position.y
+    const samePos = nodeB.position.x === nodeC.position.x && nodeB.position.y === nodeC.position.y
     expect(samePos).toBe(false)
   })
 
