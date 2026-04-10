@@ -45,16 +45,34 @@
 - AI observes the delta since last analysis, not the full graph each time
 - **Review:** Toggle auto-analyze on. Add a database. AI proactively notes the new component and its connections.
 
-## Milestone 9 — Design Challenges and Prompt Engineering
+## Milestone 9 — Curated Example Diagrams
 
-- Curated design challenge prompts ("Design a URL shortener at scale", "Design a real-time chat system")
-- Challenge mode: AI provides the prompt, user builds, AI evaluates against the challenge
-- Improved pattern recognition in prompts (CQRS, event sourcing, saga, fan-out, microservices vs monolith)
-- **Review:** Select a challenge. Build a diagram. AI provides challenge-aware feedback referencing expected patterns.
+- Pre-built sample architectures users can load with one click (e.g., e-commerce microservices, real-time chat, URL shortener, IoT pipeline)
+- Each example includes a suggested question to ask the AI, auto-filled in the chat input
+- Example selector UI (dropdown or card grid) accessible from the header or an empty canvas state
+- Examples stored as JSON graph definitions (bundled in frontend, not requiring persistence)
+- Loading an example replaces the current canvas (with confirmation if non-empty)
+- **Review:** Open the app. Select "E-commerce Microservices." Diagram loads with ~6-8 nodes and connections. Chat input pre-fills "How would you improve the scalability of this system?" Click send — AI analyzes the pre-built architecture.
 
-## Milestone 10 — Export/Import and Visual Polish
+## Milestone 10 — Improved Pattern Recognition
 
+- Enhanced topology analyzer detects higher-level architectural patterns (CQRS, event sourcing, saga, fan-out, API gateway pattern, microservices vs monolith)
+- Detected patterns included in the prompt so the AI can give pattern-aware feedback
+- **Review:** Build a diagram with separate read/write paths. AI explicitly identifies "This looks like CQRS" and gives pattern-specific advice.
+
+## Milestone 11 — UX Polish, Export/Import
+
+**Canvas interaction improvements:**
+- Auto-layout for AI-added nodes (dagre or ELK) — currently nodes stack at bottom; should integrate naturally into the existing layout
+- Smart edge routing: AI-created edges pick sensible handle positions based on relative node placement
+- Edge reconnection: drag an edge endpoint to a different node/handle to rewire it
+- Edge context menu dismisses on click-away reliably (fix current sticky behavior)
+
+**Diagram management:**
 - JSON export/import for diagrams (save/load to file)
+
+**Visual polish:**
 - Responsive layout (palette collapses on narrow screens)
 - Better overall styling and visual polish
-- **Review:** Export a diagram, close the tab, import it back. Layout works on different screen sizes.
+
+- **Review:** AI adds 3 nodes — they auto-layout without overlapping. Drag an edge from Service to Cache. Right-click an edge, click away — menu dismisses. Export diagram, reload, import it back.
