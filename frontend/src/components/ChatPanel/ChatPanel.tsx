@@ -15,6 +15,7 @@ interface ChatPanelProps {
   isStreaming: boolean
   isConnected: boolean
   onSubmit: (text: string) => void
+  onResetChat?: () => void
   turnsRemaining?: number | null
   inputValue?: string
   onInputChange?: (value: string) => void
@@ -25,7 +26,7 @@ interface ChatPanelProps {
 const MAX_CHARS = 2000
 const DEFAULT_PROMPT = 'Analyze my architecture'
 
-export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsRemaining, inputValue, onInputChange, autoAnalyzeEnabled, onToggleAutoAnalyze }: ChatPanelProps) {
+export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, onResetChat, turnsRemaining, inputValue, onInputChange, autoAnalyzeEnabled, onToggleAutoAnalyze }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const [internalInput, setInternalInput] = useState('')
 
@@ -59,6 +60,17 @@ export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsR
     <aside className="chat-panel" data-testid="chat-panel">
       <div className="chat-panel-header">
         <h3 className="chat-panel-title">AI Collaborator</h3>
+        {onResetChat && messages.length > 0 && (
+          <button
+            className="chat-clear-btn"
+            onClick={onResetChat}
+            disabled={isStreaming}
+            title="Clear conversation"
+            data-testid="chat-clear"
+          >
+            New chat
+          </button>
+        )}
         <label className="auto-analyze-toggle" data-testid="auto-analyze-toggle">
           <span className="auto-analyze-label">Auto</span>
           <button

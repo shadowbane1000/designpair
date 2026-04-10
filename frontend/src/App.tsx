@@ -514,6 +514,7 @@ function AppContent() {
           isStreaming={isStreaming}
           isConnected={status === 'connected'}
           onSubmit={handleChatSubmit}
+          onResetChat={resetChat}
           turnsRemaining={turnsRemaining}
           inputValue={chatInput}
           onInputChange={setChatInput}
