@@ -154,3 +154,25 @@
   text-align: right;
   margin-top: 4px;
 }
+
+.chat-message-validation-error {
+  color: #d97706;
+  font-size: 11px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.chat-turns-remaining {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.chat-turns-warning {
+  color: #d97706;
+  background: #fffbeb;
+  font-weight: 500;
+}

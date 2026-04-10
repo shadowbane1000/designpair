@@ -5,7 +5,7 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
-  status: 'streaming' | 'complete' | 'error'
+  status: 'streaming' | 'complete' | 'error' | 'validation_error'
   timestamp: number
 }
 
@@ -14,12 +14,13 @@ interface ChatPanelProps {
   isStreaming: boolean
   isConnected: boolean
   onSubmit: (text: string) => void
+  turnsRemaining?: number | null
 }
 
 const MAX_CHARS = 2000
 const DEFAULT_PROMPT = 'Analyze my architecture'
 
-export function ChatPanel({ messages, isStreaming, isConnected, onSubmit }: ChatPanelProps) {
+export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsRemaining }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState('')
 
@@ -62,6 +63,9 @@ export function ChatPanel({ messages, isStreaming, isConnected, onSubmit }: Chat
             {msg.status === 'error' && (
               <div className="chat-message-error">An error occurred</div>
             )}
+            {msg.status === 'validation_error' && (
+              <div className="chat-message-validation-error">Request blocked</div>
+            )}
           </div>
         ))}
         {isStreaming && (
@@ -73,6 +77,16 @@ export function ChatPanel({ messages, isStreaming, isConnected, onSubmit }: Chat
         )}
         <div ref={bottomRef} />
       </div>
+      {turnsRemaining != null && (
+        <div
+          className={`chat-turns-remaining${turnsRemaining <= 3 ? ' chat-turns-warning' : ''}`}
+          data-testid="turns-remaining"
+        >
+          {turnsRemaining === 0
+            ? 'Conversation limit reached — refresh to start a new session'
+            : `${String(turnsRemaining)} turn${turnsRemaining === 1 ? '' : 's'} remaining`}
+        </div>
+      )}
       <div className="chat-input-area">
         <div className="chat-input-row">
           <input

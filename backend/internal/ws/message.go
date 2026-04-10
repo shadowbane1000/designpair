@@ -32,10 +32,20 @@ type AIChunkPayload struct {
 }
 
 type AIDonePayload struct {
-	RequestID string `json:"requestId"`
+	RequestID      string `json:"requestId"`
+	TurnsRemaining *int   `json:"turnsRemaining,omitempty"`
 }
 
 type ErrorPayload struct {
 	RequestID string `json:"requestId,omitempty"`
 	Message   string `json:"message"`
+}
+
+// ValidationErrorPayload is sent when a pre-AI validation check fails.
+type ValidationErrorPayload struct {
+	RequestID      string `json:"requestId"`
+	Code           string `json:"code"`
+	Message        string `json:"message"`
+	RetryAfter     *int   `json:"retryAfter,omitempty"`
+	TurnsRemaining *int   `json:"turnsRemaining,omitempty"`
 }

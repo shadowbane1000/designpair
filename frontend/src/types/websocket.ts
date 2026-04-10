@@ -20,6 +20,7 @@ export interface AIChunkPayload {
 
 export interface AIDonePayload {
   requestId: string
+  turnsRemaining?: number
 }
 
 export interface ErrorPayload {
@@ -27,7 +28,22 @@ export interface ErrorPayload {
   message: string
 }
 
+export type ValidationErrorCode =
+  | 'rate_limited'
+  | 'no_diagram'
+  | 'too_many_nodes'
+  | 'turn_limit'
+
+export interface ValidationErrorPayload {
+  requestId: string
+  code: ValidationErrorCode
+  message: string
+  retryAfter?: number
+  turnsRemaining?: number
+}
+
 export type ServerMessage =
   | WSMessage<AIChunkPayload> & { type: 'ai_chunk' }
   | WSMessage<AIDonePayload> & { type: 'ai_done' }
   | WSMessage<ErrorPayload> & { type: 'error' }
+  | WSMessage<ValidationErrorPayload> & { type: 'validation_error' }

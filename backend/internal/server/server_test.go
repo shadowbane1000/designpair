@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/shadowbane1000/designpair/internal/llm"
+	"github.com/shadowbane1000/designpair/internal/ratelimit"
 )
 
 type noopLLMClient struct{}
@@ -41,7 +42,7 @@ func TestHealthCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := New(&noopLLMClient{})
+			srv := New(&noopLLMClient{}, ratelimit.New())
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rec := httptest.NewRecorder()
 

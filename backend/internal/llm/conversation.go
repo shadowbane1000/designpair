@@ -10,13 +10,16 @@ type ConversationTurn struct {
 type ConversationManager struct {
 	turns          []ConversationTurn
 	maxTokenBudget int
+	turnCount      int
+	maxTurns       int
 }
 
-// NewConversationManager creates a manager with the given token budget.
-func NewConversationManager(maxTokenBudget int) *ConversationManager {
+// NewConversationManager creates a manager with the given token budget and turn limit.
+func NewConversationManager(maxTokenBudget, maxTurns int) *ConversationManager {
 	return &ConversationManager{
 		turns:          nil,
 		maxTokenBudget: maxTokenBudget,
+		maxTurns:       maxTurns,
 	}
 }
 
@@ -44,6 +47,25 @@ func (cm *ConversationManager) GetTurns() []ConversationTurn {
 		}
 	}
 	return turns
+}
+
+// IncrementTurn records a completed round-trip exchange (user message + AI response).
+func (cm *ConversationManager) IncrementTurn() {
+	cm.turnCount++
+}
+
+// TurnsRemaining returns how many turns are left before the limit.
+func (cm *ConversationManager) TurnsRemaining() int {
+	remaining := cm.maxTurns - cm.turnCount
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+// TurnLimitReached returns true if the conversation has used all allowed turns.
+func (cm *ConversationManager) TurnLimitReached() bool {
+	return cm.turnCount >= cm.maxTurns
 }
 
 // estimateTokens gives a rough token count (~4 chars per token for English).

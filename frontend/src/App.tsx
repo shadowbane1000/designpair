@@ -8,7 +8,7 @@ import { ConnectionStatus } from './components/ConnectionStatus/ConnectionStatus
 import { EdgeContextMenu } from './components/EdgeContextMenu/EdgeContextMenu'
 import { useGraphState } from './hooks/useGraphState'
 import { useWebSocket } from './hooks/useWebSocket'
-import type { WSMessage } from './types/websocket'
+import type { WSMessage, ValidationErrorPayload } from './types/websocket'
 
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const WS_URL = `${wsProtocol}//${window.location.host}/ws`
@@ -17,6 +17,7 @@ function AppContent() {
   const graphState = useGraphState()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [turnsRemaining, setTurnsRemaining] = useState<number | null>(null)
   const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null)
 
   const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => {
@@ -59,6 +60,10 @@ function AppContent() {
           }
           flushBuffer()
           setIsStreaming(false)
+          const donePayload = msg.payload as { requestId: string; turnsRemaining?: number }
+          if (donePayload.turnsRemaining != null) {
+            setTurnsRemaining(donePayload.turnsRemaining)
+          }
           const doneId = currentMessageIdRef.current
           if (doneId) {
             setMessages((prev) =>
@@ -90,6 +95,33 @@ function AppContent() {
                 role: 'assistant',
                 content: errorPayload.message,
                 status: 'error',
+                timestamp: Date.now(),
+              },
+            ])
+          }
+          currentMessageIdRef.current = null
+          break
+        }
+        case 'validation_error': {
+          const valPayload = msg.payload as ValidationErrorPayload
+          setIsStreaming(false)
+          const valId = currentMessageIdRef.current
+          if (valId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === valId
+                  ? { ...m, content: valPayload.message, status: 'validation_error' as const }
+                  : m,
+              ),
+            )
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: valPayload.message,
+                status: 'validation_error' as const,
                 timestamp: Date.now(),
               },
             ])
@@ -157,6 +189,7 @@ function AppContent() {
           isStreaming={isStreaming}
           isConnected={status === 'connected'}
           onSubmit={handleChatSubmit}
+          turnsRemaining={turnsRemaining}
         />
         <DebugPanel graphState={graphState.graphState} />
       </div>

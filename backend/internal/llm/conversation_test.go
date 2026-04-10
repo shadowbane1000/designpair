@@ -6,7 +6,7 @@ import (
 )
 
 func TestConversationManager_EmptyHistory(t *testing.T) {
-	cm := NewConversationManager(120000)
+	cm := NewConversationManager(120000, 20)
 	turns := cm.GetTurns()
 	if len(turns) != 0 {
 		t.Errorf("expected 0 turns, got %d", len(turns))
@@ -14,7 +14,7 @@ func TestConversationManager_EmptyHistory(t *testing.T) {
 }
 
 func TestConversationManager_SingleTurn(t *testing.T) {
-	cm := NewConversationManager(120000)
+	cm := NewConversationManager(120000, 20)
 	cm.AddUserTurn("What about caching?")
 	cm.AddAssistantTurn("Good question. A cache between...")
 
@@ -31,7 +31,7 @@ func TestConversationManager_SingleTurn(t *testing.T) {
 }
 
 func TestConversationManager_MultiTurn(t *testing.T) {
-	cm := NewConversationManager(120000)
+	cm := NewConversationManager(120000, 20)
 	cm.AddUserTurn("Analyze my architecture")
 	cm.AddAssistantTurn("I see a service connected to a database...")
 	cm.AddUserTurn("What about adding a cache?")
@@ -47,7 +47,7 @@ func TestConversationManager_MultiTurn(t *testing.T) {
 
 func TestConversationManager_SlidingWindowTruncation(t *testing.T) {
 	// Very small budget to force truncation
-	cm := NewConversationManager(50) // ~200 chars budget
+	cm := NewConversationManager(50, 20) // ~200 chars budget
 
 	cm.AddUserTurn("First question about the architecture design")
 	cm.AddAssistantTurn("First answer about the architecture design with lots of detail")
@@ -71,7 +71,7 @@ func TestConversationManager_SlidingWindowTruncation(t *testing.T) {
 }
 
 func TestConversationManager_TurnPairIntegrity(t *testing.T) {
-	cm := NewConversationManager(20) // Very tight budget
+	cm := NewConversationManager(20, 20) // Very tight budget
 
 	cm.AddUserTurn(strings.Repeat("x", 100))
 	cm.AddAssistantTurn(strings.Repeat("y", 100))

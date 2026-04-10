@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/shadowbane1000/designpair/internal/llm"
+	"github.com/shadowbane1000/designpair/internal/ratelimit"
 	"github.com/shadowbane1000/designpair/internal/server"
 )
 
@@ -27,7 +28,8 @@ func main() {
 		client = &noopClient{}
 	}
 
-	srv := server.New(client)
+	limiter := ratelimit.New()
+	srv := server.New(client, limiter)
 
 	httpServer := &http.Server{
 		Addr:              ":8081",
