@@ -219,6 +219,48 @@ func TestBuildAutoAnalyzeUserMessage_WithModifications(t *testing.T) {
 	}
 }
 
+func TestBuildPrompt_IncludesDetectedPatterns(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "ws", Type: "service", Name: "Write Service"},
+			{ID: "rs", Type: "service", Name: "Read Service"},
+			{ID: "db", Type: "databaseSql", Name: "Primary DB"},
+			{ID: "cache", Type: "cache", Name: "Read Cache"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "ws", Target: "db", Protocol: "sql"},
+			{ID: "e2", Source: "rs", Target: "cache", Protocol: "tcp"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "Detected Architectural Patterns") {
+		t.Error("expected prompt to contain 'Detected Architectural Patterns' section")
+	}
+	if !strings.Contains(result, "CQRS") {
+		t.Error("expected prompt to mention CQRS pattern")
+	}
+	if !strings.Contains(result, "Write Service") {
+		t.Error("expected prompt evidence to reference Write Service")
+	}
+}
+
+func TestBuildPrompt_NoPatternsSection_WhenNoneDetected(t *testing.T) {
+	// Single isolated node — no patterns
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if strings.Contains(result, "Detected Architectural Patterns") {
+		t.Error("should not include patterns section when no patterns detected")
+	}
+}
+
 func TestBuildPromptWithPending_NoPending(t *testing.T) {
 	g := model.GraphState{
 		Nodes: []model.GraphNode{
