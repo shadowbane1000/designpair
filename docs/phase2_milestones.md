@@ -2,44 +2,59 @@
 
 ## Milestone 5 — Expanded Component Library + Scalability
 
-- Full palette: API Gateway, Serverless Function, Database (NoSQL), Object Storage, Event Bus, Stream Processor, CDN, DNS, Firewall, Web Client, Mobile Client, External API
+- Full palette: API Gateway, Serverless Function, Database (NoSQL), Object Storage, Event Bus, Stream Processor, CDN, DNS, Firewall, Web Client, Mobile Client, IoT Client, External API
 - Component categories in the palette (Compute, Data, Messaging, Network, Clients)
-- Component icons or visual differentiation per category
-- Scalability annotations: any node can display a replica count (e.g., "×3") indicating horizontal scaling
-- AI prompt construction includes scaling context ("this service is scaled to 3 replicas behind a load balancer")
-- **Review:** All component types from the architecture doc are available and visually distinct by category. Services show replica counts. AI references scaling in its analysis.
+- Component icons (lucide-react) with category-colored borders
+- Scalability annotations: replica count on supported node types
+- AI prompt construction includes scaling context
+- **Review:** All 18 component types available and visually distinct by category. Replica counts work on supported types. AI references scaling in analysis.
 
 ## Milestone 6 — Connections and Flow Refinement
 
-- Unified handles: any handle can be source or target (remove the fixed in/out distinction). Arrow on the edge defines flow direction.
+- Unified handles: any handle accepts connections in either direction
 - Edge directionality: one-way (default) or bidirectional arrows
-- Reverse edge direction (right-click or edge action to flip the arrow)
-- Predefined protocol labels (HTTP, gRPC, async, pub/sub, SQL, TCP) as quick-select options
-- Custom text labels still supported
-- Edge color defined by protocol type (or user-adjustable)
+- Reverse edge direction via context menu
+- 8 predefined protocols (HTTP, gRPC, SQL, TCP, async, pub/sub, WebSocket, MQTT) + custom text
+- Edge color defined by protocol type
 - Visual distinction between sync and async connections (solid vs dashed lines)
+- User-overridable sync/async classification per edge
 - Prompt construction includes protocol-aware and direction-aware analysis
-- **Review:** Connections flow naturally between any handles. Arrows show direction and can be reversed or made bidirectional. Protocol types have distinct colors. AI feedback references sync/async boundaries and data flow direction.
+- **Review:** Connections flow naturally between any handles. Protocol types have distinct colors. AI references sync/async boundaries.
 
-## Milestone 7 — AI Proactivity
+## Milestone 7 — AI Collaboration Tools
 
-- Optional auto-analyze mode: AI comments on meaningful changes (new connection, new component) without user explicitly asking
+- AI can suggest changes to the diagram using 6 tools: `add_node`, `delete_node`, `modify_node`, `add_edge`, `delete_edge`, `modify_edge`
+- Tools create pending suggestions — user approves or discards all at once
+- `modify_node` changes name or replicaCount only (not type — type change requires delete + add)
+- `modify_edge` changes protocol, direction, or syncAsync only (not source/target — reconnection requires delete + add)
+- Visual treatment: green glow for pending adds, red + strikethrough for pending deletes, "old → new" for pending modifications
+- Pending edge deletes with protocol show strikethrough label; without protocol show ×
+- Coincident add/delete edges (protocol swap) offset slightly for visibility
+- Suggestions accumulate across chat turns until approved or discarded
+- Flattened suggestion state: AI deleting a suggested edge removes it; AI adding a node identical to a pending-delete undeletes it
+- Three-section prompt: current architecture, proposed changes, architecture after approval
+- System prompt instructs AI to use tools directly (not ask permission) — tools create suggestions the user will approve
+- Approve All / Discard All buttons
+- **Review:** Ask the AI "add a cache between the API and database." Green-glowing cache node and edges appear. Old edge shows red strikethrough. Click Approve — changes commit. Click Discard — diagram reverts.
+
+## Milestone 8 — AI Proactivity
+
+- Optional auto-analyze mode: AI comments on meaningful changes without user asking
 - Toggle for auto-analyze (off by default)
-- Debounced triggers — don't fire on every drag pixel, only on structural changes
+- Debounced triggers — only on structural changes, not drag pixels
 - AI observes the delta since last analysis, not the full graph each time
 - **Review:** Toggle auto-analyze on. Add a database. AI proactively notes the new component and its connections.
 
-## Milestone 8 — Design Challenges and Prompt Engineering
+## Milestone 9 — Design Challenges and Prompt Engineering
 
 - Curated design challenge prompts ("Design a URL shortener at scale", "Design a real-time chat system")
 - Challenge mode: AI provides the prompt, user builds, AI evaluates against the challenge
 - Improved pattern recognition in prompts (CQRS, event sourcing, saga, fan-out, microservices vs monolith)
 - **Review:** Select a challenge. Build a diagram. AI provides challenge-aware feedback referencing expected patterns.
 
-## Milestone 9 — Export/Import and Visual Polish
+## Milestone 10 — Export/Import and Visual Polish
 
 - JSON export/import for diagrams (save/load to file)
-- Component icons (SVG) per type
 - Responsive layout (palette collapses on narrow screens)
 - Better overall styling and visual polish
-- **Review:** Export a diagram, close the tab, import it back. All components have icons. Layout works on different screen sizes.
+- **Review:** Export a diagram, close the tab, import it back. Layout works on different screen sizes.

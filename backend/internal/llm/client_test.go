@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/anthropics/anthropic-sdk-go"
 )
 
 // MockClient implements Client for testing.
@@ -19,6 +21,15 @@ func (m *MockClient) StreamAnalysis(_ context.Context, _ string, turns []Convers
 		onChunk(chunk)
 	}
 	return m.err
+}
+
+func (m *MockClient) StreamWithTools(_ context.Context, _ string, _ []anthropic.MessageParam, onChunk func(string)) (*StreamResult, error) {
+	text := ""
+	for _, chunk := range m.chunks {
+		text += chunk
+		onChunk(chunk)
+	}
+	return &StreamResult{TextContent: text, StopReason: "end_turn"}, m.err
 }
 
 func TestMockClient_StreamsChunks(t *testing.T) {

@@ -85,3 +85,58 @@ func TestBuildPrompt_IncludesTopologyInsights(t *testing.T) {
 		t.Error("expected prompt to highlight high fan-in for Shared DB")
 	}
 }
+
+func TestBuildPromptWithPending_ThreeViews(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "DB"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Label: "SQL", Protocol: "sql"},
+		},
+	}
+	analysis := Analyze(g)
+	pending := &PendingSuggestions{
+		AddNodes:    []PendingNodeAdd{{Type: "cache", Name: "Redis"}},
+		AddEdges:    []PendingEdgeAdd{{Source: "API", Target: "Redis", Protocol: "tcp"}},
+		DeleteEdges: []PendingEdgeDelete{{Source: "API", Target: "DB", Protocol: "sql"}},
+	}
+
+	prompt := BuildPromptWithPending(g, analysis, pending)
+
+	if !strings.Contains(prompt, "API") || !strings.Contains(prompt, "DB") {
+		t.Error("expected committed nodes in prompt")
+	}
+	if !strings.Contains(prompt, "Proposed Changes") {
+		t.Error("expected Proposed Changes section")
+	}
+	if !strings.Contains(prompt, "ADD node: **Redis**") {
+		t.Error("expected pending node addition in proposed changes")
+	}
+	if !strings.Contains(prompt, "DELETE edge:") {
+		t.Error("expected pending edge deletion in proposed changes")
+	}
+	if !strings.Contains(prompt, "build on the proposed changes") {
+		t.Error("expected instruction to build on pending state")
+	}
+}
+
+func TestBuildPromptWithPending_NoPending(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+	analysis := Analyze(g)
+
+	prompt := BuildPromptWithPending(g, analysis, nil)
+	if strings.Contains(prompt, "Proposed Changes") {
+		t.Error("should not contain Proposed Changes when no pending suggestions")
+	}
+
+	prompt = BuildPromptWithPending(g, analysis, &PendingSuggestions{})
+	if strings.Contains(prompt, "Proposed Changes") {
+		t.Error("should not contain Proposed Changes when pending is empty")
+	}
+}

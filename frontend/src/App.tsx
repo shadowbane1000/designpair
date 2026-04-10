@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Canvas } from './components/Canvas/Canvas'
 import { Palette } from './components/Palette/Palette'
@@ -7,6 +7,7 @@ import { ChatPanel, type ChatMessage } from './components/ChatPanel/ChatPanel'
 import { ConnectionStatus } from './components/ConnectionStatus/ConnectionStatus'
 import { EdgeContextMenu } from './components/EdgeContextMenu/EdgeContextMenu'
 import { useGraphState } from './hooks/useGraphState'
+import { useSuggestions } from './hooks/useSuggestions'
 import { useWebSocket } from './hooks/useWebSocket'
 import type { WSMessage, ValidationErrorPayload } from './types/websocket'
 
@@ -15,12 +16,24 @@ const WS_URL = `${wsProtocol}//${window.location.host}/ws`
 
 function AppContent() {
   const graphState = useGraphState()
+
+  // Refs to always have current committed nodes/edges for suggestion processing
+  const nodesRef = useRef(graphState.nodes)
+  const edgesRef = useRef(graphState.edges)
+  useEffect(() => { nodesRef.current = graphState.nodes }, [graphState.nodes])
+  useEffect(() => { edgesRef.current = graphState.edges }, [graphState.edges])
+
+  const { addSuggestion, hasPending, approveAll, discardAll, suggestions } =
+    useSuggestions(graphState.setNodes, graphState.setEdges, nodesRef, edgesRef)
+
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [turnsRemaining, setTurnsRemaining] = useState<number | null>(null)
   const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null)
 
   const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => {
+    const pendingStatus = edge.data?.pendingStatus as string | undefined
+    if (pendingStatus && pendingStatus !== 'committed') return
     setEdgeMenu({ edgeId: edge.id, x: _event.clientX, y: _event.clientY })
   }, [])
   const streamBufferRef = useRef('')
@@ -73,6 +86,30 @@ function AppContent() {
             )
           }
           currentMessageIdRef.current = null
+          break
+        }
+        case 'suggestion': {
+          const payload = msg.payload as {
+            tool: string
+            params: Record<string, unknown>
+            result: string
+            error?: string
+          }
+          if (payload.result === 'success') {
+            addSuggestion(payload.tool, payload.params)
+          } else {
+            const errorText = payload.error ?? `Tool ${payload.tool} failed`
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: `Tool error: ${errorText}`,
+                status: 'error',
+                timestamp: Date.now(),
+              },
+            ])
+          }
           break
         }
         case 'error': {
@@ -131,7 +168,7 @@ function AppContent() {
         }
       }
     },
-    [flushBuffer],
+    [flushBuffer, addSuggestion],
   )
 
   const { status, send } = useWebSocket({ url: WS_URL, onMessage })
@@ -139,7 +176,6 @@ function AppContent() {
   const handleChatSubmit = useCallback((text: string) => {
     if (status !== 'connected' || isStreaming) return
 
-    // Add user message
     setMessages((prev) => [
       ...prev,
       {
@@ -151,7 +187,6 @@ function AppContent() {
       },
     ])
 
-    // Add placeholder AI message
     const aiMessageId = crypto.randomUUID()
     currentMessageIdRef.current = aiMessageId
     setMessages((prev) => [
@@ -168,18 +203,94 @@ function AppContent() {
     setIsStreaming(true)
     streamBufferRef.current = ''
 
+    // Build pending suggestions payload for three-view prompt
+    const pendingSuggestions = hasPending ? {
+      additions: {
+        nodes: suggestions.additions.nodes.map((n) => ({ type: n.type, name: n.name })),
+        edges: suggestions.additions.edges.map((e) => {
+          const srcNode = nodesRef.current.find((n) => n.id === e.source)
+          const tgtNode = nodesRef.current.find((n) => n.id === e.target)
+          const srcPending = suggestions.additions.nodes.find((n) => n.id === e.source)
+          const tgtPending = suggestions.additions.nodes.find((n) => n.id === e.target)
+          return {
+            source: srcNode?.data.label ?? srcPending?.name ?? e.source,
+            target: tgtNode?.data.label ?? tgtPending?.name ?? e.target,
+            protocol: e.protocol ?? '',
+            direction: e.direction ?? 'oneWay',
+          }
+        }),
+      },
+      deletions: {
+        nodeNames: suggestions.deletions.nodeIds.map((id) => {
+          const node = nodesRef.current.find((n) => n.id === id)
+          return node?.data.label ?? id
+        }),
+        edges: suggestions.deletions.edgeIds.map((id) => {
+          const edge = edgesRef.current.find((e) => e.id === id)
+          const srcNode = nodesRef.current.find((n) => n.id === edge?.source)
+          const tgtNode = nodesRef.current.find((n) => n.id === edge?.target)
+          return {
+            source: srcNode?.data.label ?? '',
+            target: tgtNode?.data.label ?? '',
+            protocol: edge?.data?.protocol ?? '',
+            direction: edge?.data?.direction ?? 'oneWay',
+          }
+        }),
+      },
+      modifications: {
+        nodes: suggestions.modifications.nodes.map((m) => ({
+          name: m.nodeName,
+          newName: m.newValues.name ?? '',
+        })),
+        edges: suggestions.modifications.edges.map((m) => ({
+          source: '', target: '',
+          newProtocol: m.newValues.protocol ?? '',
+          newDirection: m.newValues.direction ?? '',
+        })),
+      },
+    } : undefined
+
     send({
       type: 'chat_message',
-      payload: { text, graphState: graphState.graphState },
+      payload: { text, graphState: graphState.graphState, pendingSuggestions },
       requestId: aiMessageId,
     })
-  }, [status, isStreaming, send, graphState.graphState])
+  }, [status, isStreaming, send, graphState.graphState, hasPending, suggestions, nodesRef, edgesRef])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>DesignPair</span>
-        <ConnectionStatus status={status} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {hasPending && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} data-testid="suggestion-bar">
+              <span style={{ fontSize: 12, color: '#6b7280' }}>Pending suggestions</span>
+              <button
+                onClick={approveAll}
+                style={{
+                  padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                  background: '#22c55e', color: '#fff', border: 'none',
+                  borderRadius: 4, cursor: 'pointer',
+                }}
+                data-testid="approve-all"
+              >
+                Approve All
+              </button>
+              <button
+                onClick={discardAll}
+                style={{
+                  padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                  background: '#ef4444', color: '#fff', border: 'none',
+                  borderRadius: 4, cursor: 'pointer',
+                }}
+                data-testid="discard-all"
+              >
+                Discard All
+              </button>
+            </div>
+          )}
+          <ConnectionStatus status={status} />
+        </div>
       </header>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Palette />

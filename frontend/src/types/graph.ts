@@ -103,6 +103,8 @@ export function getRegistryEntry(type: ComponentType): ComponentRegistryEntry | 
 export interface ArchitectureNodeData extends Record<string, unknown> {
   label: string
   replicaCount?: number
+  pendingStatus?: import('./suggestions').PendingStatus
+  pendingOldValues?: { name?: string; replicaCount?: number }
 }
 
 // Edge protocol types
@@ -165,6 +167,9 @@ export interface ArchitectureEdgeData extends Record<string, unknown> {
   protocol?: EdgeProtocol
   direction?: EdgeDirection
   syncAsync?: SyncAsync
+  pendingStatus?: import('./suggestions').PendingStatus
+  pendingOldValues?: { protocol?: string; direction?: string; syncAsync?: string }
+  edgeOffset?: number
 }
 
 export type ArchitectureNode = Node<ArchitectureNodeData, ComponentType>

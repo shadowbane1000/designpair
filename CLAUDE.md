@@ -102,6 +102,7 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 - None (session-only per ADR-005) (004-deployable-skeleton)
 - TypeScript 5.x (frontend), Go 1.24 (backend — minor prompt changes only) + Existing stack + lucide-react (new — icon library) (005-expanded-palette)
 - TypeScript 5.x (frontend), Go 1.24 (backend — prompt changes) + Existing stack (no new deps) (006-connection-flow)
+- TypeScript 5.x (frontend), Go 1.24 (backend) + Existing stack + Anthropic SDK tool_use feature (no new library deps) (007-ai-collaboration-tools)
 - TypeScript 5.x (frontend), Go 1.24 (backend) + React 19, @xyflow/react 12, Vite 6 (frontend); net/http, github.com/coder/websocket, anthropic-sdk-go (backend) (008-ai-abuse-hardening)
 - None (in-memory rate limit state, ephemeral per-connection session state — consistent with ADR-005) (008-ai-abuse-hardening)
 

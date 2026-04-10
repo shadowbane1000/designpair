@@ -8,9 +8,56 @@ import (
 	"github.com/shadowbane1000/designpair/internal/model"
 )
 
+// PendingSuggestions holds the pending changes for three-view prompt generation.
+type PendingSuggestions struct {
+	AddNodes    []PendingNodeAdd
+	AddEdges    []PendingEdgeAdd
+	DeleteNodes []string // node names
+	DeleteEdges []PendingEdgeDelete
+	ModifyNodes []PendingNodeModify
+	ModifyEdges []PendingEdgeModify
+}
+
+type PendingNodeAdd struct {
+	Type string
+	Name string
+}
+
+type PendingEdgeAdd struct {
+	Source, Target, Protocol, Direction string
+}
+
+type PendingEdgeDelete struct {
+	Source, Target, Protocol, Direction string
+}
+
+type PendingNodeModify struct {
+	Name, NewName string
+}
+
+type PendingEdgeModify struct {
+	Source, Target, NewProtocol, NewDirection string
+}
+
+// HasPending returns true if there are any pending suggestions.
+func (p *PendingSuggestions) HasPending() bool {
+	return p != nil &&
+		(len(p.AddNodes) > 0 || len(p.AddEdges) > 0 ||
+			len(p.DeleteNodes) > 0 || len(p.DeleteEdges) > 0 ||
+			len(p.ModifyNodes) > 0 || len(p.ModifyEdges) > 0)
+}
+
 // BuildPrompt constructs a hybrid prompt: natural language topology summary + JSON appendix.
 // Positions are excluded from the summary per constitution Principle II (Graph Semantics Over Pixels).
 func BuildPrompt(g model.GraphState, analysis TopologyAnalysis) string {
+	return BuildPromptWithPending(g, analysis, nil)
+}
+
+// BuildPromptWithPending constructs a three-view prompt when pending suggestions exist.
+// View 1: Current Architecture (committed only)
+// View 2: Proposed Changes (list of pending operations)
+// View 3: Architecture After Approval (merged)
+func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pending *PendingSuggestions) string {
 	if len(g.Nodes) == 0 {
 		return "The architecture canvas is currently empty. There are no components or connections to analyze. Consider suggesting where the user might start based on common architecture patterns."
 	}
@@ -135,6 +182,47 @@ func BuildPrompt(g model.GraphState, analysis TopologyAnalysis) string {
 	}
 
 	b.WriteString("\n")
+
+	// Three-view: Proposed Changes section
+	if pending.HasPending() {
+		b.WriteString("### Proposed Changes (Pending Approval)\n")
+		for _, n := range pending.AddNodes {
+			b.WriteString(fmt.Sprintf("- ADD node: **%s** (%s)\n", n.Name, n.Type))
+		}
+		for _, name := range pending.DeleteNodes {
+			b.WriteString(fmt.Sprintf("- DELETE node: **%s**\n", name))
+		}
+		for _, m := range pending.ModifyNodes {
+			if m.NewName != "" {
+				b.WriteString(fmt.Sprintf("- MODIFY node: **%s** → rename to **%s**\n", m.Name, m.NewName))
+			}
+		}
+		for _, e := range pending.AddEdges {
+			proto := e.Protocol
+			if proto == "" {
+				proto = "unspecified"
+			}
+			b.WriteString(fmt.Sprintf("- ADD edge: %s → %s [%s]\n", e.Source, e.Target, proto))
+		}
+		for _, e := range pending.DeleteEdges {
+			proto := e.Protocol
+			if proto == "" {
+				proto = "unspecified"
+			}
+			b.WriteString(fmt.Sprintf("- DELETE edge: %s → %s [%s]\n", e.Source, e.Target, proto))
+		}
+		for _, e := range pending.ModifyEdges {
+			changes := []string{}
+			if e.NewProtocol != "" {
+				changes = append(changes, fmt.Sprintf("protocol→%s", e.NewProtocol))
+			}
+			if e.NewDirection != "" {
+				changes = append(changes, fmt.Sprintf("direction→%s", e.NewDirection))
+			}
+			b.WriteString(fmt.Sprintf("- MODIFY edge: %s → %s (%s)\n", e.Source, e.Target, strings.Join(changes, ", ")))
+		}
+		b.WriteString("\nWhen making further suggestions, build on the proposed changes above. The user has not yet approved or discarded them.\n\n")
+	}
 
 	// JSON appendix (without positions)
 	type nodeCompact struct {
