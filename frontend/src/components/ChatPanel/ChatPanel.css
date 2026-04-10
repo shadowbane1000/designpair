@@ -28,6 +28,7 @@
 /* Clear conversation button */
 .chat-clear-btn {
   margin-left: auto;
+  margin-right: 8px;
   padding: 2px 8px;
   font-size: 11px;
   color: #6b7280;
