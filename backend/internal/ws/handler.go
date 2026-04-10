@@ -684,26 +684,8 @@ func validateDeleteEdge(input json.RawMessage, gs model.GraphState) string {
 	if params.Source == "" || params.Target == "" {
 		return "Error: source and target are required"
 	}
-	sourceID := nodeIDByName(gs, params.Source)
-	targetID := nodeIDByName(gs, params.Target)
-	if sourceID == "" || targetID == "" {
-		return "Error: edge not found"
-	}
-	direction := params.Direction
-	if direction == "" {
-		direction = "oneWay"
-	}
-	found := false
-	for _, e := range gs.Edges {
-		if e.Source == sourceID && e.Target == targetID &&
-			stringOrEmpty(e.Protocol) == params.Protocol &&
-			directionOrDefault(e.Direction) == direction {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return "Error: edge not found"
+	if errMsg := findEdge(gs, params.Source, params.Target, params.Protocol, params.Direction); errMsg != "" {
+		return errMsg
 	}
 	return "success"
 }
@@ -724,32 +706,37 @@ func validateModifyEdge(input json.RawMessage, gs model.GraphState) string {
 	if params.Source == "" || params.Target == "" {
 		return "Error: source and target are required"
 	}
+	if errMsg := findEdge(gs, params.Source, params.Target, params.Protocol, params.Direction); errMsg != "" {
+		return errMsg
+	}
+
+	// Resolve the matched edge's actual protocol/direction for duplicate check
 	sourceID := nodeIDByName(gs, params.Source)
 	targetID := nodeIDByName(gs, params.Target)
-	if sourceID == "" || targetID == "" {
-		return "Error: edge not found"
-	}
-	direction := params.Direction
-	if direction == "" {
-		direction = "oneWay"
-	}
-	found := false
-	for _, e := range gs.Edges {
-		if e.Source == sourceID && e.Target == targetID &&
-			stringOrEmpty(e.Protocol) == params.Protocol &&
-			directionOrDefault(e.Direction) == direction {
-			found = true
-			break
+	matchedProtocol := params.Protocol
+	matchedDirection := params.Direction
+	if matchedProtocol == "" || matchedDirection == "" {
+		for _, e := range gs.Edges {
+			if e.Source == sourceID && e.Target == targetID {
+				if matchedProtocol == "" || stringOrEmpty(e.Protocol) == matchedProtocol {
+					if matchedDirection == "" || directionOrDefault(e.Direction) == matchedDirection {
+						matchedProtocol = stringOrEmpty(e.Protocol)
+						matchedDirection = directionOrDefault(e.Direction)
+						break
+					}
+				}
+			}
 		}
 	}
-	if !found {
-		return "Error: edge not found"
+	if matchedDirection == "" {
+		matchedDirection = "oneWay"
 	}
-	newProtocol := params.Protocol
+
+	newProtocol := matchedProtocol
 	if params.NewProtocol != "" {
 		newProtocol = params.NewProtocol
 	}
-	newDirection := direction
+	newDirection := matchedDirection
 	if params.NewDirection != "" {
 		newDirection = params.NewDirection
 	}
@@ -757,13 +744,49 @@ func validateModifyEdge(input json.RawMessage, gs model.GraphState) string {
 		if e.Source == sourceID && e.Target == targetID &&
 			stringOrEmpty(e.Protocol) == newProtocol &&
 			directionOrDefault(e.Direction) == newDirection {
-			if stringOrEmpty(e.Protocol) == params.Protocol && directionOrDefault(e.Direction) == direction {
+			if stringOrEmpty(e.Protocol) == matchedProtocol && directionOrDefault(e.Direction) == matchedDirection {
 				continue
 			}
 			return "Error: modification would create duplicate edge"
 		}
 	}
 	return "success"
+}
+
+// findEdge locates an edge between source and target nodes.
+// When protocol or direction is empty, they act as wildcards.
+// Returns "" on success, or an error string if no match or ambiguous.
+func findEdge(gs model.GraphState, source, target, protocol, direction string) string {
+	sourceID := nodeIDByName(gs, source)
+	targetID := nodeIDByName(gs, target)
+	if sourceID == "" || targetID == "" {
+		return "Error: edge not found"
+	}
+
+	protocolWild := protocol == ""
+	directionWild := direction == ""
+
+	var matches int
+	for _, e := range gs.Edges {
+		if e.Source != sourceID || e.Target != targetID {
+			continue
+		}
+		if !protocolWild && stringOrEmpty(e.Protocol) != protocol {
+			continue
+		}
+		if !directionWild && directionOrDefault(e.Direction) != direction {
+			continue
+		}
+		matches++
+	}
+
+	if matches == 0 {
+		return "Error: edge not found"
+	}
+	if matches > 1 {
+		return fmt.Sprintf("Error: multiple edges exist between %q and %q — specify protocol and direction to disambiguate", source, target)
+	}
+	return ""
 }
 
 func nodeIDByName(gs model.GraphState, name string) string {

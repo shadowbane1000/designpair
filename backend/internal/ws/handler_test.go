@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -256,9 +257,13 @@ func TestValidateToolCall(t *testing.T) {
 		// delete_edge
 		{name: "valid delete_edge", tool: "delete_edge", input: `{"source":"API","target":"Database","protocol":"http","direction":"oneWay"}`, wantErr: false},
 		{name: "delete_edge not found", tool: "delete_edge", input: `{"source":"API","target":"Database","protocol":"grpc"}`, wantErr: true},
+		{name: "delete_edge wildcard single edge", tool: "delete_edge", input: `{"source":"API","target":"Database"}`, wantErr: false},
+		{name: "delete_edge wildcard no protocol", tool: "delete_edge", input: `{"source":"API","target":"Database","direction":"oneWay"}`, wantErr: false},
+		{name: "delete_edge wildcard no direction", tool: "delete_edge", input: `{"source":"API","target":"Database","protocol":"http"}`, wantErr: false},
 		// modify_edge
 		{name: "valid modify_edge", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"http","direction":"oneWay","new_protocol":"grpc"}`, wantErr: false},
 		{name: "modify_edge not found", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"sql","new_protocol":"grpc"}`, wantErr: true},
+		{name: "modify_edge wildcard single edge", tool: "modify_edge", input: `{"source":"API","target":"Database","new_protocol":"grpc"}`, wantErr: false},
 		// unknown tool
 		{name: "unknown tool", tool: "fly_to_moon", input: `{}`, wantErr: true},
 	}
@@ -269,6 +274,67 @@ func TestValidateToolCall(t *testing.T) {
 			isError := result != "success"
 			if isError != tt.wantErr {
 				t.Errorf("validateToolCall(%s, %s) = %q, wantErr=%v", tt.tool, tt.input, result, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestWildcardEdgeMatching_MultipleEdges(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "http", Direction: "oneWay"},
+			{ID: "e2", Source: "n1", Target: "n2", Protocol: "grpc", Direction: "oneWay"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		tool    string
+		input   string
+		wantErr bool
+		wantMsg string
+	}{
+		{
+			name:    "delete_edge wildcard ambiguous",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database"}`,
+			wantErr: true,
+			wantMsg: "multiple edges",
+		},
+		{
+			name:    "delete_edge with protocol resolves ambiguity",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database","protocol":"http"}`,
+			wantErr: false,
+		},
+		{
+			name:    "modify_edge wildcard ambiguous",
+			tool:    "modify_edge",
+			input:   `{"source":"API","target":"Database","new_protocol":"ws"}`,
+			wantErr: true,
+			wantMsg: "multiple edges",
+		},
+		{
+			name:    "modify_edge with protocol resolves ambiguity",
+			tool:    "modify_edge",
+			input:   `{"source":"API","target":"Database","protocol":"grpc","new_protocol":"ws"}`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateToolCall(tt.tool, json.RawMessage(tt.input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("validateToolCall(%s, %s) = %q, wantErr=%v", tt.tool, tt.input, result, tt.wantErr)
+			}
+			if tt.wantMsg != "" && !strings.Contains(result, tt.wantMsg) {
+				t.Errorf("expected result to contain %q, got %q", tt.wantMsg, result)
 			}
 		})
 	}
