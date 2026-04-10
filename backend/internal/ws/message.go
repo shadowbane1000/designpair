@@ -49,3 +49,10 @@ type ValidationErrorPayload struct {
 	RetryAfter     *int   `json:"retryAfter,omitempty"`
 	TurnsRemaining *int   `json:"turnsRemaining,omitempty"`
 }
+
+type SuggestionPayload struct {
+	Tool   string         `json:"tool"`
+	Params map[string]any `json:"params"`
+	Result string         `json:"result"` // "success" or "error"
+	Error  string         `json:"error,omitempty"`
+}
