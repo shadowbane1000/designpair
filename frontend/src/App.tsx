@@ -14,6 +14,8 @@ import { useSuggestions } from './hooks/useSuggestions'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useAutoAnalyze } from './hooks/useAutoAnalyze'
 import { exportDiagram, parseDiagramFile } from './services/diagramIO'
+import { exportMermaid } from './services/mermaidExport'
+import { exportDrawio } from './services/drawioExport'
 import type { WSMessage, ValidationErrorPayload } from './types/websocket'
 import type { ExampleDiagram } from './data/examples'
 import './App.css'
@@ -44,6 +46,8 @@ function AppContent() {
   const [annotationPanel, setAnnotationPanel] = useState<{ nodeId: string; x: number; y: number } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(true)
   const [pendingClear, setPendingClear] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<((data: unknown) => void) | null>(null)
 
@@ -83,8 +87,31 @@ function AppContent() {
     }
   }, [discardAll])
 
-  const handleExport = useCallback(() => {
+  // Close export menu on click-away
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as HTMLElement)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => { document.removeEventListener('mousedown', handleClickOutside) }
+  }, [exportMenuOpen])
+
+  const handleExportJSON = useCallback(() => {
     exportDiagram(graphState.nodes, graphState.edges)
+    setExportMenuOpen(false)
+  }, [graphState.nodes, graphState.edges])
+
+  const handleExportMermaid = useCallback(() => {
+    exportMermaid(graphState.nodes, graphState.edges)
+    setExportMenuOpen(false)
+  }, [graphState.nodes, graphState.edges])
+
+  const handleExportDrawio = useCallback(() => {
+    exportDrawio(graphState.nodes, graphState.edges)
+    setExportMenuOpen(false)
   }, [graphState.nodes, graphState.edges])
 
   const handleImport = useCallback(() => {
@@ -470,13 +497,43 @@ function AppContent() {
           >
             Examples
           </button>
-          <button
-            onClick={handleExport}
-            className="header-btn"
-            data-testid="export-button"
-          >
-            Export
-          </button>
+          <div ref={exportMenuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => { setExportMenuOpen((v) => !v) }}
+              className="header-btn"
+              data-testid="export-button"
+            >
+              Export
+            </button>
+            {exportMenuOpen && (
+              <div
+                className="export-dropdown"
+                data-testid="export-dropdown"
+              >
+                <button
+                  className="export-dropdown-item"
+                  onClick={handleExportJSON}
+                  data-testid="export-json"
+                >
+                  DesignPair (JSON)
+                </button>
+                <button
+                  className="export-dropdown-item"
+                  onClick={handleExportMermaid}
+                  data-testid="export-mermaid"
+                >
+                  Mermaid
+                </button>
+                <button
+                  className="export-dropdown-item"
+                  onClick={handleExportDrawio}
+                  data-testid="export-drawio"
+                >
+                  draw.io
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={handleImport}
             className="header-btn"
