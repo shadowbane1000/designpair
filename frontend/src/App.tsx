@@ -43,6 +43,7 @@ function AppContent() {
   const [chatInput, setChatInput] = useState('')
   const [annotationPanel, setAnnotationPanel] = useState<{ nodeId: string; x: number; y: number } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(true)
+  const [pendingClear, setPendingClear] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<((data: unknown) => void) | null>(null)
 
@@ -129,6 +130,21 @@ function AppContent() {
 
   const handleCancelExample = useCallback(() => {
     setPendingExample(null)
+  }, [])
+
+  const handleClearCanvas = useCallback(() => {
+    setPendingClear(true)
+  }, [])
+
+  const handleConfirmClear = useCallback(() => {
+    graphState.setNodes([])
+    graphState.setEdges([])
+    resetChat()
+    setPendingClear(false)
+  }, [graphState, resetChat])
+
+  const handleCancelClear = useCallback(() => {
+    setPendingClear(false)
   }, [])
 
   const streamBufferRef = useRef('')
@@ -476,6 +492,15 @@ function AppContent() {
             style={{ display: 'none' }}
             data-testid="import-file-input"
           />
+          {canvasHasContent && (
+            <button
+              onClick={handleClearCanvas}
+              className="header-btn header-btn-danger"
+              data-testid="clear-canvas-button"
+            >
+              Clear Canvas
+            </button>
+          )}
           {hasPending && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} data-testid="suggestion-bar">
               <span style={{ fontSize: 12, color: '#6b7280' }}>Pending suggestions</span>
@@ -576,6 +601,36 @@ function AppContent() {
                 data-testid="confirm-replace"
               >
                 Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingClear && (
+        <div
+          className="example-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}
+          data-testid="clear-confirm-overlay"
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#111827' }}>Clear the canvas?</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>
+              This will remove all components and connections.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelClear}
+                style={{ padding: '6px 16px', fontSize: 13, background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}
+                data-testid="clear-confirm-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmClear}
+                style={{ padding: '6px 16px', fontSize: 13, fontWeight: 600, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                data-testid="clear-confirm-ok"
+              >
+                Clear
               </button>
             </div>
           </div>

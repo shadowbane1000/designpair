@@ -52,6 +52,16 @@
   background: #e5e7eb;
 }
 
+.header-btn-danger {
+  color: #991b1b;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.header-btn-danger:hover {
+  background: #fee2e2;
+}
+
 .palette-toggle {
   display: none;
   padding: 4px 8px;
