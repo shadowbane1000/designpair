@@ -382,4 +382,144 @@ describe('useSuggestions — flattening', () => {
       expect(result.current.suggestions.deletions.edgeIds).toContain('e1')
     })
   })
+
+  describe('edge cascade on node deletion with pending edges', () => {
+    it('deleting a node also removes pending-add edges connected to it', () => {
+      const nodes = [makeNode('n1', 'API'), makeNode('n2', 'DB')]
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodes, []))
+
+      // Add a pending node and edges to it
+      act(() => { result.current.addSuggestion('add_node', { type: 'cache', name: 'Redis' }) })
+      act(() => { result.current.addSuggestion('add_edge', { source: 'API', target: 'Redis', protocol: 'tcp' }) })
+      expect(result.current.suggestions.additions.edges).toHaveLength(1)
+
+      // Delete the pending node — its pending edge should vanish
+      act(() => { result.current.addSuggestion('delete_node', { name: 'Redis' }) })
+      expect(result.current.suggestions.additions.nodes).toHaveLength(0)
+      expect(result.current.suggestions.additions.edges).toHaveLength(0)
+    })
+
+    it('deleting committed node cascades to committed edges and removes pending edge modifications', () => {
+      const nodes = [makeNode('n1', 'API'), makeNode('n2', 'DB'), makeNode('n3', 'Cache')]
+      const edges = [
+        makeEdge('e1', 'n1', 'n2', 'http'),
+        makeEdge('e2', 'n1', 'n3', 'tcp'),
+      ]
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodes, edges))
+
+      // Modify edge e1 first
+      act(() => {
+        result.current.addSuggestion('modify_edge', {
+          source: 'API', target: 'DB', protocol: 'http', direction: 'oneWay', new_protocol: 'grpc',
+        })
+      })
+      expect(result.current.suggestions.modifications.edges).toHaveLength(1)
+
+      // Delete API node — should cascade edges and clear the edge modification
+      act(() => { result.current.addSuggestion('delete_node', { name: 'API' }) })
+      expect(result.current.suggestions.deletions.nodeIds).toContain('n1')
+      expect(result.current.suggestions.deletions.edgeIds).toContain('e1')
+      expect(result.current.suggestions.deletions.edgeIds).toContain('e2')
+      // Edge modification for e1 should be cleared since the edge is being deleted
+      expect(result.current.suggestions.modifications.edges).toHaveLength(0)
+    })
+  })
+
+  describe('approveAll — detailed', () => {
+    it('pending-add nodes become committed, pending-delete nodes are removed', () => {
+      const nodes = [makeNode('n1', 'API'), makeNode('n2', 'DB')]
+      const edges = [makeEdge('e1', 'n1', 'n2', 'http')]
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodes, edges))
+
+      // Add a node, delete a node, modify an edge
+      act(() => { result.current.addSuggestion('add_node', { type: 'cache', name: 'Redis' }) })
+      act(() => { result.current.addSuggestion('delete_node', { name: 'DB' }) })
+
+      expect(result.current.nodes).toHaveLength(3) // API + Redis + DB (pending-delete)
+
+      act(() => { result.current.approveAll() })
+
+      // DB should be removed, Redis should be committed
+      expect(result.current.hasPending).toBe(false)
+      expect(result.current.nodes).toHaveLength(2)
+      const nodeLabels = result.current.nodes.map((n) => n.data.label)
+      expect(nodeLabels).toContain('API')
+      expect(nodeLabels).toContain('Redis')
+      expect(nodeLabels).not.toContain('DB')
+
+      // No node should have pending status
+      for (const n of result.current.nodes) {
+        expect(n.data.pendingStatus).toBeUndefined()
+      }
+    })
+
+    it('pending-add edges survive approval, pending-delete edges are removed', () => {
+      const nodes = [makeNode('n1', 'API'), makeNode('n2', 'DB')]
+      const edges = [makeEdge('e1', 'n1', 'n2', 'http')]
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodes, edges))
+
+      // Delete committed edge, add a new one
+      act(() => { result.current.addSuggestion('delete_edge', { source: 'API', target: 'DB', protocol: 'http', direction: 'oneWay' }) })
+      act(() => { result.current.addSuggestion('add_edge', { source: 'API', target: 'DB', protocol: 'grpc' }) })
+
+      act(() => { result.current.approveAll() })
+
+      expect(result.current.hasPending).toBe(false)
+      // Old http edge should be gone, new grpc edge should remain
+      expect(result.current.edges).toHaveLength(1)
+      const edge = at(result.current.edges, 0)
+      expect(edge.data?.protocol).toBe('grpc')
+      expect(edge.data?.pendingStatus).toBeUndefined()
+    })
+
+    it('pending-modify node shows new values after approval', () => {
+      const nodes = [makeNode('n1', 'API')]
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodes, []))
+
+      act(() => { result.current.addSuggestion('modify_node', { name: 'API', new_name: 'Gateway', replica_count: 3 }) })
+      act(() => { result.current.approveAll() })
+
+      expect(result.current.hasPending).toBe(false)
+      const node = at(result.current.nodes, 0)
+      expect(node.data.label).toBe('Gateway')
+      expect(node.data.replicaCount).toBe(3)
+      expect(node.data.pendingStatus).toBeUndefined()
+    })
+  })
+
+  describe('auto-layout integration', () => {
+    it('pending-add nodes get repositioned near their connected neighbors', () => {
+      const nodes = [makeNode('n1', 'API')]
+      // Place API at a specific position
+      const nodesWithPos = nodes.map((n) => ({ ...n, position: { x: 300, y: 100 } }))
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodesWithPos, []))
+
+      act(() => { result.current.addSuggestion('add_node', { type: 'cache', name: 'Redis' }) })
+      act(() => { result.current.addSuggestion('add_edge', { source: 'API', target: 'Redis', protocol: 'tcp' }) })
+
+      // Redis should have been positioned near API (300, 100), offset 200px below
+      const redis = result.current.nodes.find((n) => n.data.label === 'Redis')
+      if (!redis) throw new Error('Redis node not found')
+      expect(redis.position.x).toBe(300)
+      expect(redis.position.y).toBe(300) // 100 + 200 offset
+    })
+
+    it('multiple unconnected pending nodes get stacked without overlapping', () => {
+      const nodes = [makeNode('n1', 'API')]
+      const nodesWithPos = nodes.map((n) => ({ ...n, position: { x: 200, y: 100 } }))
+      const { result } = renderHook(() => useSuggestionsTestHarness(nodesWithPos, []))
+
+      act(() => { result.current.addSuggestion('add_node', { type: 'cache', name: 'Redis' }) })
+      act(() => { result.current.addSuggestion('add_node', { type: 'databaseSql', name: 'DB' }) })
+
+      const redis = result.current.nodes.find((n) => n.data.label === 'Redis')
+      const db = result.current.nodes.find((n) => n.data.label === 'DB')
+      if (!redis) throw new Error('Redis not found')
+      if (!db) throw new Error('DB not found')
+
+      // Both should be positioned, and they should not overlap
+      const samePos = redis.position.x === db.position.x && redis.position.y === db.position.y
+      expect(samePos).toBe(false)
+    })
+  })
 })
