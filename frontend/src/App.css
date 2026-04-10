@@ -75,6 +75,41 @@
   overflow: hidden;
 }
 
+/* Canvas welcome message (empty state) */
+.canvas-welcome {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #9ca3af;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 24px 32px;
+  max-width: 360px;
+}
+
+.canvas-welcome-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 0 12px;
+}
+
+.canvas-welcome-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #9ca3af;
+}
+
+.canvas-welcome-list strong {
+  color: #6b7280;
+}
+
 /* Responsive: show palette toggle and hide palette on narrow screens */
 @media (max-width: 768px) {
   .palette-toggle {

@@ -85,8 +85,10 @@ export function Canvas({ graphState, onEdgeClick, onPaneClick }: CanvasProps) {
     [screenToFlowPosition, addNode],
   )
 
+  const isEmpty = nodes.length === 0
+
   return (
-    <div style={{ flex: 1, height: '100%' }}>
+    <div style={{ flex: 1, height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -111,6 +113,16 @@ export function Canvas({ graphState, onEdgeClick, onPaneClick }: CanvasProps) {
         <Background />
         <Controls />
       </ReactFlow>
+      {isEmpty && (
+        <div className="canvas-welcome" data-testid="canvas-welcome">
+          <p className="canvas-welcome-title">Start designing your architecture</p>
+          <ul className="canvas-welcome-list">
+            <li>Drag components from the palette onto the canvas</li>
+            <li>Select an example diagram from the <strong>Examples</strong> button</li>
+            <li>Import a diagram from a JSON file via <strong>Import</strong></li>
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
