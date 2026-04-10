@@ -534,6 +534,7 @@ function AppContent() {
             x={edgeMenu.x}
             y={edgeMenu.y}
             currentProtocol={edge.data?.protocol}
+            currentLabel={edge.data?.label}
             currentDirection={edge.data?.direction ?? 'oneWay'}
             currentSyncAsync={edge.data?.syncAsync ?? 'sync'}
             onSelectProtocol={graphState.updateEdgeProtocol}

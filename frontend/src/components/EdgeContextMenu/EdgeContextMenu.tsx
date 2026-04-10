@@ -12,6 +12,7 @@ interface EdgeContextMenuProps {
   x: number
   y: number
   currentProtocol?: EdgeProtocol
+  currentLabel?: string
   currentDirection: EdgeDirection
   currentSyncAsync: SyncAsync
   onSelectProtocol: (edgeId: string, protocol: EdgeProtocol, label: string, syncAsync?: SyncAsync) => void
@@ -26,6 +27,7 @@ export function EdgeContextMenu({
   x,
   y,
   currentProtocol,
+  currentLabel,
   currentDirection,
   currentSyncAsync,
   onSelectProtocol,
@@ -35,7 +37,9 @@ export function EdgeContextMenu({
   onClose,
 }: EdgeContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
-  const [customText, setCustomText] = useState('')
+  const predefined = protocolRegistry.map((p) => p.protocol as string)
+  const isCustom = currentProtocol === 'custom' || (currentProtocol && !predefined.includes(currentProtocol))
+  const [customText, setCustomText] = useState(isCustom && currentLabel ? currentLabel : '')
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -85,6 +89,11 @@ export function EdgeContextMenu({
               if (e.key === 'Enter' && customText.trim()) {
                 onSelectProtocol(edgeId, 'custom', customText.trim())
                 setCustomText('')
+              }
+            }}
+            onBlur={() => {
+              if (customText.trim()) {
+                onSelectProtocol(edgeId, 'custom', customText.trim())
               }
             }}
           />
