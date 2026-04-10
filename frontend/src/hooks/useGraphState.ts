@@ -21,6 +21,8 @@ import type {
 } from '../types/graph'
 import { getProtocolDefault } from '../types/graph'
 import { serializeGraph } from '../services/graphSerializer'
+import { computeLayout } from '../services/autoLayout'
+import { routeEdges } from '../services/edgeRouting'
 
 /** Generate a unique name by appending "(2)", "(3)", etc. if needed. */
 function uniqueName(desired: string, existingNames: Set<string>): string {
@@ -199,8 +201,18 @@ export function useGraphState() {
 
   const loadExample = useCallback(
     (newNodes: ArchitectureNode[], newEdges: ArchitectureEdge[]) => {
-      setNodes(newNodes)
-      setEdges(newEdges)
+      // Apply dagre layout for clean automatic positioning
+      const positions = computeLayout(newNodes, newEdges)
+      const layoutedNodes = newNodes.map((node) => {
+        const pos = positions.get(node.id)
+        return pos ? { ...node, position: pos } : node
+      })
+
+      // Apply smart edge routing based on layouted positions
+      const routedEdges = routeEdges(newEdges, layoutedNodes)
+
+      setNodes(layoutedNodes)
+      setEdges(routedEdges)
     },
     [setNodes, setEdges],
   )

@@ -210,6 +210,17 @@
   margin-top: 4px;
 }
 
+.chat-message-system {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #6b7280;
+  background: #f0f9ff;
+  border: 1px solid #e0f2fe;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .chat-message-validation-error {
   color: #d97706;
   font-size: 11px;
@@ -230,4 +241,10 @@
   color: #d97706;
   background: #fffbeb;
   font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .chat-panel {
+    width: 240px;
+  }
 }

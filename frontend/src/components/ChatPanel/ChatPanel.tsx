@@ -3,7 +3,7 @@ import './ChatPanel.css'
 
 export interface ChatMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   status: 'streaming' | 'complete' | 'error' | 'validation_error'
   timestamp: number
@@ -78,20 +78,30 @@ export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsR
           <p className="chat-empty">Draw some components and press Enter to get architectural feedback, or type a question.</p>
         )}
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`chat-message chat-message-${msg.role}`}
-            data-testid={`chat-message-${msg.id}`}
-          >
-            <div className="chat-message-role">{msg.role === 'user' ? 'You' : msg.isAutoAnalysis ? 'AI (auto-analysis)' : 'AI'}</div>
-            <div className="chat-message-content">{msg.content}</div>
-            {msg.status === 'error' && (
-              <div className="chat-message-error">An error occurred</div>
-            )}
-            {msg.status === 'validation_error' && (
-              <div className="chat-message-validation-error">Request blocked</div>
-            )}
-          </div>
+          msg.role === 'system' ? (
+            <div
+              key={msg.id}
+              className="chat-message-system"
+              data-testid={`chat-message-${msg.id}`}
+            >
+              {msg.content}
+            </div>
+          ) : (
+            <div
+              key={msg.id}
+              className={`chat-message chat-message-${msg.role}`}
+              data-testid={`chat-message-${msg.id}`}
+            >
+              <div className="chat-message-role">{msg.role === 'user' ? 'You' : msg.isAutoAnalysis ? 'AI (auto-analysis)' : 'AI'}</div>
+              <div className="chat-message-content">{msg.content}</div>
+              {msg.status === 'error' && (
+                <div className="chat-message-error">An error occurred</div>
+              )}
+              {msg.status === 'validation_error' && (
+                <div className="chat-message-validation-error">Request blocked</div>
+              )}
+            </div>
+          )
         ))}
         {isStreaming && (
           <div className="chat-streaming" data-testid="streaming-indicator">

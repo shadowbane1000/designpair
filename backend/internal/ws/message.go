@@ -145,3 +145,10 @@ type SuggestionPayload struct {
 	Result string          `json:"result"` // "success" or "error"
 	Error  string          `json:"error,omitempty"`
 }
+
+type ConversationSummarizedPayload struct {
+	RequestID            string `json:"requestId"`
+	OriginalTurnCount    int    `json:"originalTurnCount"`
+	RetainedTurnCount    int    `json:"retainedTurnCount"`
+	SummaryTokenEstimate int    `json:"summaryTokenEstimate"`
+}

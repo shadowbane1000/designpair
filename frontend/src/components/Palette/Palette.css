@@ -78,3 +78,16 @@
 .palette-item:active {
   cursor: grabbing;
 }
+
+/* Responsive: narrower palette on medium screens, full hide controlled by parent */
+@media (max-width: 768px) {
+  .palette {
+    width: 160px;
+    padding: 8px;
+  }
+
+  .palette-item {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+}

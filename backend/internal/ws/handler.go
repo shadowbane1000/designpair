@@ -22,13 +22,19 @@ const maxNodes = 50
 
 // Handler manages WebSocket connections.
 type Handler struct {
-	llmClient llm.Client
-	limiter   *ratelimit.Limiter
+	llmClient  llm.Client
+	limiter    *ratelimit.Limiter
+	summarizer llm.Summarizer
 }
 
 // NewHandler creates a new WebSocket handler.
 func NewHandler(llmClient llm.Client, limiter *ratelimit.Limiter) *Handler {
 	return &Handler{llmClient: llmClient, limiter: limiter}
+}
+
+// SetSummarizer configures the summarizer for conversation memory.
+func (h *Handler) SetSummarizer(s llm.Summarizer) {
+	h.summarizer = s
 }
 
 // ServeHTTP upgrades the connection and handles messages.
@@ -47,6 +53,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	slog.Info("WebSocket client connected", "ip", clientIP)
 
 	conversation := llm.NewConversationManager(120000, 20)
+	if h.summarizer != nil {
+		conversation.SetSummarizer(h.summarizer)
+	}
 
 	for {
 		var msg WSMessage
@@ -68,6 +77,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.handleAnalyzeRequestCompat(ctx, conn, msg, conversation, clientIP)
 		case "auto_analyze_request":
 			h.handleAutoAnalyze(ctx, conn, msg, conversation, clientIP)
+		case "reset_conversation":
+			conversation.Reset()
+			slog.Info("Conversation reset", "ip", clientIP)
 		default:
 			slog.Warn("Unknown message type", "type", msg.Type, "ip", clientIP)
 		}
@@ -138,6 +150,8 @@ func (h *Handler) handleAutoAnalyze(ctx context.Context, conn *websocket.Conn, m
 
 	userMessage := graph.BuildAutoAnalyzeUserMessage(req.GraphState, analysis, graphDelta)
 	conversation.AddUserTurn(userMessage)
+
+	h.trySummarize(ctx, conn, msg.RequestID, conversation, clientIP)
 	turns := conversation.GetTurns()
 
 	slog.Info("Starting auto-analysis", "requestId", msg.RequestID, "ip", clientIP)
@@ -266,6 +280,8 @@ func (h *Handler) processAnalysisWithPending(ctx context.Context, conn *websocke
 
 	fullUserMessage := userText + "\n\n" + graphPrompt
 	conversation.AddUserTurn(fullUserMessage)
+
+	h.trySummarize(ctx, conn, requestID, conversation, clientIP)
 	turns := conversation.GetTurns()
 
 	// Build initial messages from conversation history
@@ -444,6 +460,45 @@ func sendError(ctx context.Context, conn *websocket.Conn, requestID, message str
 
 func logAbuse(event, ip, detail string) {
 	slog.Warn("abuse event", "event", event, "ip", ip, "detail", detail)
+}
+
+// trySummarize attempts to summarize old conversation turns if the token budget threshold is exceeded.
+func (h *Handler) trySummarize(ctx context.Context, conn *websocket.Conn, requestID string, conversation *llm.ConversationManager, clientIP string) {
+	result, err := conversation.SummarizeIfNeeded(ctx)
+	if err != nil {
+		slog.Error("Conversation summarization failed", "requestId", requestID, "error", err, "ip", clientIP)
+		return
+	}
+	if result == nil {
+		return
+	}
+
+	slog.Info("Conversation summarized",
+		"requestId", requestID,
+		"originalTurns", result.OriginalTurnCount,
+		"retainedTurns", result.RetainedTurnCount,
+		"summaryTokens", result.SummaryTokenEstimate,
+		"ip", clientIP)
+
+	sendConversationSummarized(ctx, conn, requestID, *result)
+}
+
+func sendConversationSummarized(ctx context.Context, conn *websocket.Conn, requestID string, result llm.SummarizeResult) {
+	msg := WSMessage{
+		Type:      "conversation_summarized",
+		RequestID: requestID,
+	}
+	payload, _ := json.Marshal(ConversationSummarizedPayload{
+		RequestID:            requestID,
+		OriginalTurnCount:    result.OriginalTurnCount,
+		RetainedTurnCount:    result.RetainedTurnCount,
+		SummaryTokenEstimate: result.SummaryTokenEstimate,
+	})
+	msg.Payload = payload
+
+	if err := wsjson.Write(ctx, conn, msg); err != nil {
+		slog.Error("WebSocket summarized write failed", "error", err)
+	}
 }
 
 // --- Query Tools ---

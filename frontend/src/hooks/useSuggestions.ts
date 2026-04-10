@@ -14,6 +14,8 @@ import type {
   EdgeModification,
 } from '../types/suggestions'
 import { emptySuggestionSet, hasPendingSuggestions } from '../types/suggestions'
+import { layoutNewNodes } from '../services/autoLayout'
+import { pickHandlePositions } from '../services/edgeRouting'
 
 // --- Edge identity helper ---
 function edgeIdentity(source: string, target: string, protocol?: string, direction?: string): string {
@@ -216,60 +218,13 @@ function applyToReactFlow(
   setNodes: SetNodesFunc,
   setEdges: SetEdgesFunc,
 ) {
-  setNodes((currentNodes) => {
-    const result: ArchitectureNode[] = []
+  // Build both node and edge results, then apply layout before setting state.
+  // We need to read currentNodes/currentEdges inside the updaters but coordinate
+  // layout across both, so we build edges first (captured via ref-like pattern),
+  // then set nodes with layout applied, then set edges with smart routing.
 
-    for (const node of currentNodes) {
-      // Remove previous pending-adds — they'll be re-added from the current set below
-      if (node.data.pendingStatus === 'pendingAdd') continue
-
-      const committedNode = committedNodes.find((n) => n.id === node.id)
-
-      if (!committedNode) {
-        // User-added node after snapshot — keep it, strip any stale pending status
-        result.push({ ...node, data: { ...node.data, pendingStatus: undefined, pendingOldValues: undefined } })
-        continue
-      }
-
-      // Apply pending operations from the suggestion set
-      const isDeleted = set.deletions.nodeIds.includes(node.id)
-      const modification = set.modifications.nodes.find((m) => m.nodeId === node.id)
-
-      if (isDeleted) {
-        result.push({
-          ...node,
-          data: { ...committedNode.data, pendingStatus: 'pendingDelete' },
-        })
-      } else if (modification) {
-        result.push({
-          ...node,
-          data: {
-            ...committedNode.data,
-            label: modification.newValues.name ?? committedNode.data.label,
-            replicaCount: modification.newValues.replicaCount ?? committedNode.data.replicaCount,
-            pendingStatus: 'pendingModify',
-            pendingOldValues: modification.oldValues,
-          },
-        })
-      } else {
-        // Restore to committed data (clear any previous pending status), keep position
-        result.push({ ...node, data: { ...committedNode.data, pendingStatus: undefined, pendingOldValues: undefined } })
-      }
-    }
-
-    // Add pending-add nodes that aren't already in the result
-    for (const pn of set.additions.nodes) {
-      result.push({
-        id: pn.id,
-        type: pn.type,
-        position: pn.position,
-        data: { label: pn.name, replicaCount: pn.replicaCount, pendingStatus: 'pendingAdd' },
-      })
-    }
-
-    return result
-  })
-
+  // Phase 1: Build the edge result set (we need this for layout)
+  let builtEdges: ArchitectureEdge[] = []
   setEdges((currentEdges) => {
     const result: ArchitectureEdge[] = []
 
@@ -279,7 +234,6 @@ function applyToReactFlow(
       const committedEdge = committedEdges.find((e) => e.id === edge.id)
 
       if (!committedEdge) {
-        // User-added edge after snapshot — keep it
         if (edge.data) {
           result.push({ ...edge, data: { ...edge.data, pendingStatus: undefined, pendingOldValues: undefined } } as ArchitectureEdge)
         } else {
@@ -310,7 +264,6 @@ function applyToReactFlow(
           },
         } as ArchitectureEdge)
       } else {
-        // Restore to committed data
         result.push(edge.data ? { ...edge, data: { ...edge.data, pendingStatus: undefined, pendingOldValues: undefined } } as ArchitectureEdge : edge)
       }
     }
@@ -334,7 +287,76 @@ function applyToReactFlow(
       } as ArchitectureEdge)
     }
 
+    builtEdges = result
     return result
+  })
+
+  // Phase 2: Build node result set, apply dagre layout for pending-add nodes,
+  // then apply smart edge routing based on final node positions.
+  setNodes((currentNodes) => {
+    const result: ArchitectureNode[] = []
+
+    for (const node of currentNodes) {
+      if (node.data.pendingStatus === 'pendingAdd') continue
+
+      const committedNode = committedNodes.find((n) => n.id === node.id)
+
+      if (!committedNode) {
+        result.push({ ...node, data: { ...node.data, pendingStatus: undefined, pendingOldValues: undefined } })
+        continue
+      }
+
+      const isDeleted = set.deletions.nodeIds.includes(node.id)
+      const modification = set.modifications.nodes.find((m) => m.nodeId === node.id)
+
+      if (isDeleted) {
+        result.push({
+          ...node,
+          data: { ...committedNode.data, pendingStatus: 'pendingDelete' },
+        })
+      } else if (modification) {
+        result.push({
+          ...node,
+          data: {
+            ...committedNode.data,
+            label: modification.newValues.name ?? committedNode.data.label,
+            replicaCount: modification.newValues.replicaCount ?? committedNode.data.replicaCount,
+            pendingStatus: 'pendingModify',
+            pendingOldValues: modification.oldValues,
+          },
+        })
+      } else {
+        result.push({ ...node, data: { ...committedNode.data, pendingStatus: undefined, pendingOldValues: undefined } })
+      }
+    }
+
+    for (const pn of set.additions.nodes) {
+      result.push({
+        id: pn.id,
+        type: pn.type,
+        position: pn.position,
+        data: { label: pn.name, replicaCount: pn.replicaCount, pendingStatus: 'pendingAdd' },
+      })
+    }
+
+    // Auto-layout: reposition pending-add nodes using dagre
+    const layoutedNodes = layoutNewNodes(result, builtEdges)
+
+    // Smart edge routing: update pending-add edges with sensible handle positions
+    const nodeMap = new Map(layoutedNodes.map((n) => [n.id, n]))
+    setEdges((es) =>
+      es.map((edge) => {
+        if (edge.data?.pendingStatus !== 'pendingAdd') return edge
+        if (edge.sourceHandle && edge.targetHandle) return edge
+        const { sourceHandle, targetHandle } = pickHandlePositions(
+          nodeMap.get(edge.source),
+          nodeMap.get(edge.target),
+        )
+        return { ...edge, sourceHandle, targetHandle }
+      }),
+    )
+
+    return layoutedNodes
   })
 }
 
