@@ -15,14 +15,21 @@ interface ChatPanelProps {
   isConnected: boolean
   onSubmit: (text: string) => void
   turnsRemaining?: number | null
+  inputValue?: string
+  onInputChange?: (value: string) => void
 }
 
 const MAX_CHARS = 2000
 const DEFAULT_PROMPT = 'Analyze my architecture'
 
-export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsRemaining }: ChatPanelProps) {
+export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsRemaining, inputValue, onInputChange }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
-  const [input, setInput] = useState('')
+  const [internalInput, setInternalInput] = useState('')
+
+  // Use controlled mode when parent provides inputValue/onInputChange
+  const isControlled = inputValue !== undefined && onInputChange !== undefined
+  const input = isControlled ? inputValue : internalInput
+  const setInput = isControlled ? onInputChange : setInternalInput
 
   const lastMessageContent = messages[messages.length - 1]?.content
   useEffect(() => {

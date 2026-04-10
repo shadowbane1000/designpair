@@ -197,6 +197,14 @@ export function useGraphState() {
     [setEdges],
   )
 
+  const loadExample = useCallback(
+    (newNodes: ArchitectureNode[], newEdges: ArchitectureEdge[]) => {
+      setNodes(newNodes)
+      setEdges(newEdges)
+    },
+    [setNodes, setEdges],
+  )
+
   const onNodesDelete: OnNodesDelete = useCallback(() => {}, [])
   const onEdgesDelete: OnEdgesDelete = useCallback(() => {}, [])
 
@@ -215,6 +223,7 @@ export function useGraphState() {
     addNode,
     updateNodeData,
     updateEdgeData,
+    loadExample,
     updateEdgeProtocol,
     toggleEdgeDirection,
     reverseEdge,

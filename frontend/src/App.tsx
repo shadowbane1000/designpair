@@ -6,10 +6,12 @@ import { DebugPanel } from './components/DebugPanel/DebugPanel'
 import { ChatPanel, type ChatMessage } from './components/ChatPanel/ChatPanel'
 import { ConnectionStatus } from './components/ConnectionStatus/ConnectionStatus'
 import { EdgeContextMenu } from './components/EdgeContextMenu/EdgeContextMenu'
+import { ExampleSelector } from './components/ExampleSelector/ExampleSelector'
 import { useGraphState } from './hooks/useGraphState'
 import { useSuggestions } from './hooks/useSuggestions'
 import { useWebSocket } from './hooks/useWebSocket'
 import type { WSMessage, ValidationErrorPayload } from './types/websocket'
+import type { ExampleDiagram } from './data/examples'
 
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 const WS_URL = `${wsProtocol}//${window.location.host}/ws`
@@ -30,12 +32,39 @@ function AppContent() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [turnsRemaining, setTurnsRemaining] = useState<number | null>(null)
   const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null)
+  const [showExamples, setShowExamples] = useState(false)
+  const [pendingExample, setPendingExample] = useState<ExampleDiagram | null>(null)
+  const [chatInput, setChatInput] = useState('')
 
   const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => {
     const pendingStatus = edge.data?.pendingStatus as string | undefined
     if (pendingStatus && pendingStatus !== 'committed') return
     setEdgeMenu({ edgeId: edge.id, x: _event.clientX, y: _event.clientY })
   }, [])
+  const canvasHasContent = graphState.nodes.length > 0
+
+  const handleExampleSelect = useCallback((example: ExampleDiagram) => {
+    if (canvasHasContent) {
+      setPendingExample(example)
+      setShowExamples(false)
+    } else {
+      graphState.loadExample(example.nodes, example.edges)
+      setChatInput(example.suggestedQuestion)
+      setShowExamples(false)
+    }
+  }, [canvasHasContent, graphState])
+
+  const handleConfirmExample = useCallback(() => {
+    if (!pendingExample) return
+    graphState.loadExample(pendingExample.nodes, pendingExample.edges)
+    setChatInput(pendingExample.suggestedQuestion)
+    setPendingExample(null)
+  }, [pendingExample, graphState])
+
+  const handleCancelExample = useCallback(() => {
+    setPendingExample(null)
+  }, [])
+
   const streamBufferRef = useRef('')
   const rafRef = useRef<number | null>(null)
   const currentMessageIdRef = useRef<string | null>(null)
@@ -262,6 +291,17 @@ function AppContent() {
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>DesignPair</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => { setShowExamples(true) }}
+            style={{
+              padding: '4px 12px', fontSize: 12, fontWeight: 500,
+              background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
+              borderRadius: 4, cursor: 'pointer',
+            }}
+            data-testid="examples-button"
+          >
+            Examples
+          </button>
           {hasPending && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} data-testid="suggestion-bar">
               <span style={{ fontSize: 12, color: '#6b7280' }}>Pending suggestions</span>
@@ -301,6 +341,8 @@ function AppContent() {
           isConnected={status === 'connected'}
           onSubmit={handleChatSubmit}
           turnsRemaining={turnsRemaining}
+          inputValue={chatInput}
+          onInputChange={setChatInput}
         />
         <DebugPanel graphState={graphState.graphState} />
       </div>
@@ -323,6 +365,42 @@ function AppContent() {
           />
         )
       })()}
+      {showExamples && (
+        <ExampleSelector
+          onSelect={handleExampleSelect}
+          onClose={() => { setShowExamples(false) }}
+        />
+      )}
+      {pendingExample && (
+        <div
+          className="example-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}
+          data-testid="confirm-overlay"
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#111827' }}>Replace current diagram?</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>
+              Loading &ldquo;{pendingExample.name}&rdquo; will replace your current diagram. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelExample}
+                style={{ padding: '6px 16px', fontSize: 13, background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}
+                data-testid="confirm-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmExample}
+                style={{ padding: '6px 16px', fontSize: 13, fontWeight: 600, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                data-testid="confirm-replace"
+              >
+                Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
