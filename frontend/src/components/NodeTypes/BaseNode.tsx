@@ -32,7 +32,7 @@ export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supports
     pendingStatus === 'pendingModify' ? 'node-pending-modify' : ''
 
   return (
-    <div className={`architecture-node ${className} ${pendingClass}`} data-testid={`node-${id}`}>
+    <div className={`architecture-node ${className} ${pendingClass} ${nodeProps.selected ? 'node-selected' : ''}`} data-testid={`node-${id}`}>
       {/* Dual handles at each position: source + target overlapping */}
       <Handle type="target" position={Position.Top} id="top-target" className="handle-overlay" />
       <Handle type="source" position={Position.Top} id="top-source" className="handle-overlay" />
