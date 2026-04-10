@@ -12,6 +12,7 @@ type GraphNode struct {
 	Name         string   `json:"name"`
 	Position     Position `json:"position"`
 	ReplicaCount int      `json:"replicaCount,omitempty"`
+	Annotation   string   `json:"annotation,omitempty"`
 }
 
 type Position struct {

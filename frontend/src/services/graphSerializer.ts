@@ -22,6 +22,10 @@ export function serializeGraph(
       if (replicaCount !== undefined && replicaCount > 1) {
         serialized.replicaCount = replicaCount
       }
+      const annotation = node.data.annotation
+      if (annotation) {
+        serialized.annotation = annotation
+      }
       return serialized
     }),
     edges: edges.map((edge) => {

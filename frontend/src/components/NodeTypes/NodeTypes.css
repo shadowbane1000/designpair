@@ -170,3 +170,30 @@
   color: #22c55e;
   font-weight: 600;
 }
+
+/* Annotation badge */
+.node-annotation-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #9ca3af;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.architecture-node:hover .node-annotation-badge {
+  opacity: 1;
+}
+
+.node-annotation-badge.has-annotation {
+  opacity: 1;
+  color: #f59e0b;
+}
+
+.node-annotation-badge:hover {
+  background: rgba(0, 0, 0, 0.06);
+}

@@ -237,3 +237,45 @@ func TestBuildPromptWithPending_NoPending(t *testing.T) {
 		t.Error("should not contain Proposed Changes when pending is empty")
 	}
 }
+
+func TestBuildPrompt_IncludesAnnotations(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API", Annotation: "Handles all public REST endpoints"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "Handles all public REST endpoints") {
+		t.Error("expected prompt to include annotation text")
+	}
+}
+
+func TestBuildPrompt_AnnotationInJSON(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API", Annotation: "Main entry point"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, `"annotation": "Main entry point"`) {
+		t.Error("expected JSON appendix to include annotation field")
+	}
+}
+
+func TestBuildPrompt_NoAnnotation_OmittedFromJSON(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if strings.Contains(result, `"annotation"`) {
+		t.Error("expected JSON appendix to omit annotation when empty")
+	}
+}

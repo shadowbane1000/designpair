@@ -103,6 +103,7 @@ export function getRegistryEntry(type: ComponentType): ComponentRegistryEntry | 
 export interface ArchitectureNodeData extends Record<string, unknown> {
   label: string
   replicaCount?: number
+  annotation?: string
   pendingStatus?: import('./suggestions').PendingStatus
   pendingOldValues?: { name?: string; replicaCount?: number }
 }
@@ -181,6 +182,7 @@ export interface SerializedNode {
   name: string
   position: { x: number; y: number }
   replicaCount?: number
+  annotation?: string
 }
 
 export interface SerializedEdge {

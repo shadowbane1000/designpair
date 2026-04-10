@@ -120,4 +120,22 @@ describe('serializeGraph', () => {
     expect(result.nodes[0]?.type).toBe('apiGateway')
     expect(result.nodes[1]?.type).toBe('iotClient')
   })
+
+  it('includes annotation when non-empty', () => {
+    const nodes: ArchitectureNode[] = [
+      { id: 'n1', type: 'service', position: { x: 0, y: 0 }, data: { label: 'API', annotation: 'Handles REST' } },
+    ]
+    const result = serializeGraph(nodes, [])
+    expect(result.nodes[0]?.annotation).toBe('Handles REST')
+  })
+
+  it('omits annotation when empty or undefined', () => {
+    const nodes: ArchitectureNode[] = [
+      { id: 'n1', type: 'service', position: { x: 0, y: 0 }, data: { label: 'A', annotation: '' } },
+      { id: 'n2', type: 'service', position: { x: 100, y: 0 }, data: { label: 'B' } },
+    ]
+    const result = serializeGraph(nodes, [])
+    expect(result.nodes[0]?.annotation).toBeUndefined()
+    expect(result.nodes[1]?.annotation).toBeUndefined()
+  })
 })

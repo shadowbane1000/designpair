@@ -73,10 +73,14 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 	b.WriteString("### Components\n")
 	for _, n := range g.Nodes {
 		if n.ReplicaCount > 1 {
-			b.WriteString(fmt.Sprintf("- **%s** (%s, ×%d replicas)\n", n.Name, n.Type, n.ReplicaCount))
+			b.WriteString(fmt.Sprintf("- **%s** (%s, ×%d replicas)", n.Name, n.Type, n.ReplicaCount))
 		} else {
-			b.WriteString(fmt.Sprintf("- **%s** (%s)\n", n.Name, n.Type))
+			b.WriteString(fmt.Sprintf("- **%s** (%s)", n.Name, n.Type))
 		}
+		if n.Annotation != "" {
+			b.WriteString(fmt.Sprintf(": %s", n.Annotation))
+		}
+		b.WriteString("\n")
 	}
 	b.WriteString("\n")
 
@@ -226,9 +230,10 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 
 	// JSON appendix (without positions)
 	type nodeCompact struct {
-		ID   string `json:"id"`
-		Type string `json:"type"`
-		Name string `json:"name"`
+		ID         string `json:"id"`
+		Type       string `json:"type"`
+		Name       string `json:"name"`
+		Annotation string `json:"annotation,omitempty"`
 	}
 	type edgeCompact struct {
 		Source string `json:"source"`
@@ -238,7 +243,7 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 
 	compactNodes := make([]nodeCompact, len(g.Nodes))
 	for i, n := range g.Nodes {
-		compactNodes[i] = nodeCompact{ID: n.ID, Type: n.Type, Name: n.Name}
+		compactNodes[i] = nodeCompact{ID: n.ID, Type: n.Type, Name: n.Name, Annotation: n.Annotation}
 	}
 	compactEdges := make([]edgeCompact, len(g.Edges))
 	for i, e := range g.Edges {

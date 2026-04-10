@@ -7,6 +7,8 @@ import { ChatPanel, type ChatMessage } from './components/ChatPanel/ChatPanel'
 import { ConnectionStatus } from './components/ConnectionStatus/ConnectionStatus'
 import { EdgeContextMenu } from './components/EdgeContextMenu/EdgeContextMenu'
 import { ExampleSelector } from './components/ExampleSelector/ExampleSelector'
+import { AnnotationPanel } from './components/AnnotationPanel/AnnotationPanel'
+import { AnnotationProvider } from './components/NodeTypes/AnnotationContext'
 import { useGraphState } from './hooks/useGraphState'
 import { useSuggestions } from './hooks/useSuggestions'
 import { useWebSocket } from './hooks/useWebSocket'
@@ -37,6 +39,23 @@ function AppContent() {
   const [showExamples, setShowExamples] = useState(false)
   const [pendingExample, setPendingExample] = useState<ExampleDiagram | null>(null)
   const [chatInput, setChatInput] = useState('')
+  const [annotationPanel, setAnnotationPanel] = useState<{ nodeId: string; x: number; y: number } | null>(null)
+
+  // Derive active annotation panel: auto-hide if target node was removed
+  const annotationNodeExists = annotationPanel ? graphState.nodes.some((n) => n.id === annotationPanel.nodeId) : false
+  const activeAnnotationPanel = annotationPanel && annotationNodeExists ? annotationPanel : null
+
+  const handleAnnotationClick = useCallback((nodeId: string, event: React.MouseEvent) => {
+    const node = graphState.nodes.find((n) => n.id === nodeId)
+    if (!node) return
+    const pendingStatus = node.data.pendingStatus
+    if (pendingStatus && pendingStatus !== 'committed') return
+    setAnnotationPanel({ nodeId, x: event.clientX, y: event.clientY })
+  }, [graphState.nodes])
+
+  const handleAnnotationUpdate = useCallback((nodeId: string, annotation: string) => {
+    graphState.updateNodeData(nodeId, { annotation })
+  }, [graphState])
 
   const handleEdgeClick = useCallback((_event: React.MouseEvent, edge: { id: string; data?: Record<string, unknown> }) => {
     const pendingStatus = edge.data?.pendingStatus as string | undefined
@@ -352,6 +371,7 @@ function AppContent() {
   }, [status, isStreaming, send, graphState.graphState, hasPending, suggestions, nodesRef, edgesRef, cancelPending])
 
   return (
+    <AnnotationProvider onAnnotationClick={handleAnnotationClick}>
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>DesignPair</span>
@@ -468,7 +488,23 @@ function AppContent() {
           </div>
         </div>
       )}
+      {activeAnnotationPanel && (() => {
+        const node = graphState.nodes.find((n) => n.id === activeAnnotationPanel.nodeId)
+        if (!node) return null
+        return (
+          <AnnotationPanel
+            nodeId={activeAnnotationPanel.nodeId}
+            nodeName={node.data.label}
+            annotation={node.data.annotation ?? ''}
+            x={activeAnnotationPanel.x}
+            y={activeAnnotationPanel.y}
+            onUpdate={handleAnnotationUpdate}
+            onClose={() => { setAnnotationPanel(null) }}
+          />
+        )
+      })()}
     </div>
+    </AnnotationProvider>
   )
 }
 

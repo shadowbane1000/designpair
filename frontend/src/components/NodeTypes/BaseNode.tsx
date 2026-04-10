@@ -1,6 +1,8 @@
 import { Handle, Position, useReactFlow, type NodeProps, type Node } from '@xyflow/react'
 import type { LucideIcon } from 'lucide-react'
+import { StickyNote } from 'lucide-react'
 import { type ArchitectureNodeData } from '../../types/graph'
+import { useAnnotationClick } from './AnnotationContext'
 import './NodeTypes.css'
 
 interface BaseNodeProps {
@@ -14,7 +16,9 @@ interface BaseNodeProps {
 export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supportsReplicas }: BaseNodeProps) {
   const { id, data } = nodeProps
   const { updateNodeData } = useReactFlow()
+  const onAnnotationClick = useAnnotationClick()
   const replicaCount = data.replicaCount ?? 1
+  const hasAnnotation = !!data.annotation
   const pendingStatus = data.pendingStatus
   const isPending = pendingStatus && pendingStatus !== 'committed'
   const oldValues = data.pendingOldValues
@@ -47,6 +51,19 @@ export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supports
         ) : replicaCount > 1 ? (
           <span className="node-replica-badge" data-testid={`replica-count-${id}`}>×{replicaCount}</span>
         ) : null}
+        {!isPending && (
+          <span
+            className={`node-annotation-badge nodrag nopan ${hasAnnotation ? 'has-annotation' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onAnnotationClick?.(id, e)
+            }}
+            title={hasAnnotation ? 'Edit annotation' : 'Add annotation'}
+            data-testid={`annotation-badge-${id}`}
+          >
+            <StickyNote size={12} />
+          </span>
+        )}
       </div>
       {nameChanged ? (
         <div className="node-name-input" data-testid={`node-name-${id}`}>
