@@ -1,9 +1,13 @@
 package ratelimit
 
 import (
+	"context"
 	"sync"
 	"time"
 )
+
+// CleanupInterval is how often the cleanup goroutine runs.
+const CleanupInterval = 5 * time.Minute
 
 const (
 	// MaxRequests is the maximum number of AI requests per window per IP.
@@ -26,6 +30,40 @@ type entry struct {
 func New() *Limiter {
 	return &Limiter{
 		entries: make(map[string]*entry),
+	}
+}
+
+// StartCleanup launches a background goroutine that periodically removes
+// entries whose newest timestamp is older than the rate limit window.
+// It stops when ctx is cancelled.
+func (l *Limiter) StartCleanup(ctx context.Context) {
+	go l.cleanupLoop(ctx, CleanupInterval)
+}
+
+func (l *Limiter) cleanupLoop(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			l.removeStale(now)
+		}
+	}
+}
+
+func (l *Limiter) removeStale(now time.Time) {
+	cutoff := now.Add(-Window)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	for ip, e := range l.entries {
+		if len(e.timestamps) == 0 || !e.timestamps[len(e.timestamps)-1].After(cutoff) {
+			delete(l.entries, ip)
+		}
 	}
 }
 

@@ -155,6 +155,52 @@ func TestLimiter(t *testing.T) {
 		}
 	})
 
+	t.Run("cleanup removes stale entries", func(t *testing.T) {
+		l := New()
+		past := time.Now().Add(-Window - time.Minute)
+
+		// Add a stale entry (all timestamps older than the window).
+		l.mu.Lock()
+		l.entries["stale-ip"] = &entry{timestamps: []time.Time{past}}
+		l.mu.Unlock()
+
+		// Add a fresh entry.
+		l.Allow("fresh-ip")
+
+		// Run cleanup.
+		l.removeStale(time.Now())
+
+		l.mu.Lock()
+		_, staleExists := l.entries["stale-ip"]
+		_, freshExists := l.entries["fresh-ip"]
+		l.mu.Unlock()
+
+		if staleExists {
+			t.Error("stale entry should have been removed")
+		}
+		if !freshExists {
+			t.Error("fresh entry should still exist")
+		}
+	})
+
+	t.Run("cleanup removes entry with empty timestamps", func(t *testing.T) {
+		l := New()
+
+		l.mu.Lock()
+		l.entries["empty-ip"] = &entry{timestamps: []time.Time{}}
+		l.mu.Unlock()
+
+		l.removeStale(time.Now())
+
+		l.mu.Lock()
+		_, exists := l.entries["empty-ip"]
+		l.mu.Unlock()
+
+		if exists {
+			t.Error("entry with empty timestamps should have been removed")
+		}
+	})
+
 	t.Run("many IPs tracked independently", func(t *testing.T) {
 		l := New()
 		// Exhaust 3 different IPs

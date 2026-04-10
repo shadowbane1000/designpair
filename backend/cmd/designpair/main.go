@@ -30,6 +30,9 @@ func main() {
 	}
 
 	limiter := ratelimit.New()
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	limiter.StartCleanup(cleanupCtx)
 
 	var opts []server.Option
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
