@@ -220,6 +220,64 @@ func TestHandler_TooManyNodesReturnsValidationError(t *testing.T) {
 	conn.Close(websocket.StatusNormalClosure, "done")
 }
 
+func TestHandler_TooManyEdgesReturnsValidationError(t *testing.T) {
+	mock := &mockLLMClient{
+		chunks: []string{"Should not reach here"},
+	}
+	handler := NewHandler(mock, ratelimit.New())
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + server.URL[len("http"):]
+	ctx := context.Background()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial error: %v", err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+
+	// Create 1 node and 201 edges (exceeds maxEdges=200)
+	edges := make([]model.GraphEdge, 201)
+	for i := range edges {
+		edges[i] = model.GraphEdge{ID: fmt.Sprintf("e%d", i), Source: "n1", Target: "n1"}
+	}
+
+	graphPayload, _ := json.Marshal(AnalyzeRequest{
+		GraphState: model.GraphState{
+			Nodes: []model.GraphNode{{ID: "n1", Type: "service", Name: "svc"}},
+			Edges: edges,
+		},
+	})
+	req := WSMessage{
+		Type:      "analyze_request",
+		Payload:   graphPayload,
+		RequestID: "test-req-edges",
+	}
+	if err := wsjson.Write(ctx, conn, req); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+
+	var msg WSMessage
+	if err := wsjson.Read(ctx, conn, &msg); err != nil {
+		t.Fatalf("read error: %v", err)
+	}
+	if msg.Type != "validation_error" {
+		t.Fatalf("expected validation_error, got %s", msg.Type)
+	}
+
+	var payload ValidationErrorPayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if payload.Code != "too_many_edges" {
+		t.Errorf("expected code too_many_edges, got %s", payload.Code)
+	}
+
+	conn.Close(websocket.StatusNormalClosure, "done")
+}
+
 // --- Tool validation tests (T013) ---
 
 func TestValidateToolCall(t *testing.T) {
