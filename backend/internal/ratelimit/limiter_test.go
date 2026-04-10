@@ -121,4 +121,61 @@ func TestLimiter(t *testing.T) {
 			t.Errorf("retryAfter = %d, want %d", retryAfter, expected)
 		}
 	})
+
+	t.Run("sliding window allows new request after oldest expires", func(t *testing.T) {
+		l := New()
+		now := time.Now()
+
+		// Spread requests across the window: one per second
+		for i := 0; i < MaxRequests; i++ {
+			l.allowAt("1.2.3.4", now.Add(time.Duration(i)*time.Second))
+		}
+
+		// Request right after the window is full should be rejected
+		allowed, _ := l.allowAt("1.2.3.4", now.Add(time.Duration(MaxRequests)*time.Second))
+		if allowed {
+			t.Error("should be rejected when window is full")
+		}
+
+		// After the first request's timestamp expires from the window, we should be allowed
+		allowed, _ = l.allowAt("1.2.3.4", now.Add(Window+1*time.Second))
+		if !allowed {
+			t.Error("should be allowed after oldest timestamp expires from window")
+		}
+	})
+
+	t.Run("retryAfter is zero when allowed", func(t *testing.T) {
+		l := New()
+		allowed, retryAfter := l.Allow("10.0.0.1")
+		if !allowed {
+			t.Error("first request should be allowed")
+		}
+		if retryAfter != 0 {
+			t.Errorf("retryAfter should be 0 when allowed, got %d", retryAfter)
+		}
+	})
+
+	t.Run("many IPs tracked independently", func(t *testing.T) {
+		l := New()
+		// Exhaust 3 different IPs
+		for _, ip := range []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"} {
+			for j := 0; j < MaxRequests; j++ {
+				l.Allow(ip)
+			}
+		}
+
+		// All three should be rate limited
+		for _, ip := range []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"} {
+			allowed, _ := l.Allow(ip)
+			if allowed {
+				t.Errorf("IP %s should be rate limited", ip)
+			}
+		}
+
+		// New IP should still be allowed
+		allowed, _ := l.Allow("10.0.0.4")
+		if !allowed {
+			t.Error("new IP should be allowed")
+		}
+	})
 }

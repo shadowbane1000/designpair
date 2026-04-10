@@ -343,3 +343,302 @@ func TestWildcardEdgeMatching_MultipleEdges(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkingGraphState_AddNodeThenAddEdge(t *testing.T) {
+	// Simulates the tool loop: add_node for Redis, then add_edge from API to Redis.
+	// The working graph state should have Redis after add_node so add_edge succeeds.
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "http"},
+		},
+	}
+
+	// Step 1: add_node for Redis — should succeed
+	addNodeInput := json.RawMessage(`{"type":"cache","name":"Redis"}`)
+	result := validateToolCall("add_node", addNodeInput, gs)
+	if result != "success" {
+		t.Fatalf("add_node for Redis should succeed, got %q", result)
+	}
+
+	// Apply the add to working state (mimic handler loop)
+	applyAddNodeToState(&gs, addNodeInput)
+
+	// Step 2: add_edge from API to Redis — should now succeed with working state
+	addEdgeInput := json.RawMessage(`{"source":"API","target":"Redis","protocol":"tcp"}`)
+	result = validateToolCall("add_edge", addEdgeInput, gs)
+	if result != "success" {
+		t.Fatalf("add_edge to newly added Redis should succeed, got %q", result)
+	}
+}
+
+func TestWorkingGraphState_AddNodeThenAddDuplicate(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+
+	addNodeInput := json.RawMessage(`{"type":"cache","name":"Redis"}`)
+	result := validateToolCall("add_node", addNodeInput, gs)
+	if result != "success" {
+		t.Fatalf("first add_node should succeed, got %q", result)
+	}
+
+	applyAddNodeToState(&gs, addNodeInput)
+
+	// Adding Redis again should fail
+	result = validateToolCall("add_node", json.RawMessage(`{"type":"cache","name":"Redis"}`), gs)
+	if result == "success" {
+		t.Error("duplicate add_node after working state update should fail")
+	}
+}
+
+func TestValidateToolCall_CaseInsensitiveProtocol_AllOperations(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "gRPC", Direction: "oneWay"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		tool    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "add_edge duplicate GRPC uppercase",
+			tool:    "add_edge",
+			input:   `{"source":"API","target":"Database","protocol":"GRPC"}`,
+			wantErr: true,
+		},
+		{
+			name:    "add_edge duplicate grpc lowercase",
+			tool:    "add_edge",
+			input:   `{"source":"API","target":"Database","protocol":"grpc"}`,
+			wantErr: true,
+		},
+		{
+			name:    "add_edge different protocol ok",
+			tool:    "add_edge",
+			input:   `{"source":"API","target":"Database","protocol":"http"}`,
+			wantErr: false,
+		},
+		{
+			name:    "delete_edge case-insensitive match",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database","protocol":"GRPC","direction":"oneWay"}`,
+			wantErr: false,
+		},
+		{
+			name:    "modify_edge case-insensitive match",
+			tool:    "modify_edge",
+			input:   `{"source":"API","target":"Database","protocol":"grpc","direction":"oneWay","new_protocol":"http"}`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateToolCall(tt.tool, json.RawMessage(tt.input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("got %q, wantErr=%v", result, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateToolCall_ModifyEdge_DuplicateDetection(t *testing.T) {
+	// Two edges between same nodes with different protocols. Modify one to match the other.
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "http", Direction: "oneWay"},
+			{ID: "e2", Source: "n1", Target: "n2", Protocol: "grpc", Direction: "oneWay"},
+		},
+	}
+
+	// Modifying grpc edge to http should fail (would create duplicate)
+	result := validateToolCall("modify_edge", json.RawMessage(
+		`{"source":"API","target":"Database","protocol":"grpc","direction":"oneWay","new_protocol":"http"}`), gs)
+	if result == "success" {
+		t.Error("modify_edge should fail when it would create a duplicate edge")
+	}
+	if !strings.Contains(result, "duplicate") {
+		t.Errorf("expected error to mention 'duplicate', got %q", result)
+	}
+}
+
+func TestValidateToolCall_ModifyNode_ReplicaCountValid(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "replica count 1 is valid",
+			input:   `{"name":"API","replica_count":1}`,
+			wantErr: false,
+		},
+		{
+			name:    "replica count 3 is valid",
+			input:   `{"name":"API","replica_count":3}`,
+			wantErr: false,
+		},
+		{
+			name:    "replica count 0 is invalid",
+			input:   `{"name":"API","replica_count":0}`,
+			wantErr: true,
+		},
+		{
+			name:    "replica count -1 is invalid",
+			input:   `{"name":"API","replica_count":-1}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateToolCall("modify_node", json.RawMessage(tt.input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("got %q, wantErr=%v", result, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateToolCall_AddEdge_MissingFields(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "missing source",
+			input:   `{"target":"Database","protocol":"http"}`,
+			wantErr: true,
+		},
+		{
+			name:    "missing target",
+			input:   `{"source":"API","protocol":"http"}`,
+			wantErr: true,
+		},
+		{
+			name:    "both missing",
+			input:   `{"protocol":"http"}`,
+			wantErr: true,
+		},
+		{
+			name:    "no protocol is fine",
+			input:   `{"source":"API","target":"Database"}`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateToolCall("add_edge", json.RawMessage(tt.input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("got %q, wantErr=%v", result, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateToolCall_AddNode_MissingType(t *testing.T) {
+	gs := model.GraphState{}
+
+	result := validateToolCall("add_node", json.RawMessage(`{"name":"Redis"}`), gs)
+	if result == "success" {
+		t.Error("add_node without type should fail")
+	}
+}
+
+func TestWildcardEdgeMatching_ThreeEdges(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "http", Direction: "oneWay"},
+			{ID: "e2", Source: "n1", Target: "n2", Protocol: "grpc", Direction: "oneWay"},
+			{ID: "e3", Source: "n1", Target: "n2", Protocol: "http", Direction: "bidirectional"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		tool    string
+		input   string
+		wantErr bool
+		wantMsg string
+	}{
+		{
+			name:    "wildcard all three ambiguous",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database"}`,
+			wantErr: true,
+			wantMsg: "multiple edges",
+		},
+		{
+			name:    "protocol http still ambiguous (2 directions)",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database","protocol":"http"}`,
+			wantErr: true,
+			wantMsg: "multiple edges",
+		},
+		{
+			name:    "protocol http + direction oneWay resolves",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database","protocol":"http","direction":"oneWay"}`,
+			wantErr: false,
+		},
+		{
+			name:    "protocol grpc unique",
+			tool:    "delete_edge",
+			input:   `{"source":"API","target":"Database","protocol":"grpc"}`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateToolCall(tt.tool, json.RawMessage(tt.input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("got %q, wantErr=%v", result, tt.wantErr)
+			}
+			if tt.wantMsg != "" && !strings.Contains(result, tt.wantMsg) {
+				t.Errorf("expected %q in result, got %q", tt.wantMsg, result)
+			}
+		})
+	}
+}

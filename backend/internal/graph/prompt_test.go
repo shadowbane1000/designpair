@@ -321,3 +321,249 @@ func TestBuildPrompt_NoAnnotation_OmittedFromJSON(t *testing.T) {
 		t.Error("expected JSON appendix to omit annotation when empty")
 	}
 }
+
+func TestBuildPromptWithPending_AllSuggestionTypes(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "DB"},
+			{ID: "n3", Type: "cache", Name: "Redis"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Label: "SQL", Protocol: "sql"},
+			{ID: "e2", Source: "n1", Target: "n3", Label: "TCP", Protocol: "tcp"},
+		},
+	}
+	analysis := Analyze(g)
+	pending := &PendingSuggestions{
+		AddNodes:    []PendingNodeAdd{{Type: "messageQueue", Name: "Kafka"}},
+		AddEdges:    []PendingEdgeAdd{{Source: "API", Target: "Kafka", Protocol: "pubsub"}},
+		DeleteNodes: []string{"Redis"},
+		DeleteEdges: []PendingEdgeDelete{{Source: "API", Target: "Redis", Protocol: "tcp"}},
+		ModifyNodes: []PendingNodeModify{{Name: "API", NewName: "Gateway"}},
+		ModifyEdges: []PendingEdgeModify{{Source: "API", Target: "DB", NewProtocol: "grpc", NewDirection: "bidirectional"}},
+	}
+
+	prompt := BuildPromptWithPending(g, analysis, pending)
+
+	if !strings.Contains(prompt, "ADD node: **Kafka** (messageQueue)") {
+		t.Error("expected pending node addition for Kafka")
+	}
+	if !strings.Contains(prompt, "DELETE node: **Redis**") {
+		t.Error("expected pending node deletion for Redis")
+	}
+	if !strings.Contains(prompt, "MODIFY node: **API** → rename to **Gateway**") {
+		t.Error("expected pending node modification")
+	}
+	if !strings.Contains(prompt, "ADD edge: API → Kafka") {
+		t.Error("expected pending edge addition")
+	}
+	if !strings.Contains(prompt, "DELETE edge: API → Redis") {
+		t.Error("expected pending edge deletion")
+	}
+	if !strings.Contains(prompt, "MODIFY edge: API → DB") {
+		t.Error("expected pending edge modification")
+	}
+	if !strings.Contains(prompt, "protocol→grpc") {
+		t.Error("expected protocol change in edge modification")
+	}
+	if !strings.Contains(prompt, "direction→bidirectional") {
+		t.Error("expected direction change in edge modification")
+	}
+}
+
+func TestBuildAutoAnalyzeUserMessage_AllDeltaTypes(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "DB"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "sql"},
+		},
+	}
+	analysis := Analyze(g)
+	delta := &AutoAnalyzeDelta{
+		AddedNodes:    []DeltaNode{{Type: "cache", Name: "Redis"}},
+		RemovedNodes:  []DeltaNode{{Type: "messageQueue", Name: "OldQueue"}},
+		AddedEdges:    []DeltaEdge{{Source: "API", Target: "Redis", Protocol: "tcp"}},
+		RemovedEdges:  []DeltaEdge{{Source: "API", Target: "OldQueue", Protocol: ""}},
+		ModifiedNodes: []DeltaModify{{Name: "DB", Field: "name", OldValue: "Database", NewValue: "DB"}},
+		ModifiedEdges: []DeltaModify{{Name: "API→DB", Field: "protocol", OldValue: "http", NewValue: "sql"}},
+	}
+
+	prompt := BuildAutoAnalyzeUserMessage(g, analysis, delta)
+
+	if !strings.Contains(prompt, "**Added** component: Redis (cache)") {
+		t.Error("expected added node in delta")
+	}
+	if !strings.Contains(prompt, "**Removed** component: OldQueue (messageQueue)") {
+		t.Error("expected removed node in delta")
+	}
+	if !strings.Contains(prompt, "**Added** connection: API → Redis [tcp]") {
+		t.Error("expected added edge in delta")
+	}
+	if !strings.Contains(prompt, "**Removed** connection: API → OldQueue [unspecified protocol]") {
+		t.Error("expected removed edge with unspecified protocol")
+	}
+	if !strings.Contains(prompt, "**Modified** component DB:") {
+		t.Error("expected modified node in delta")
+	}
+	if !strings.Contains(prompt, "**Modified** connection API→DB:") {
+		t.Error("expected modified edge in delta")
+	}
+}
+
+func TestBuildPrompt_CycleInTopology(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "a", Type: "service", Name: "ServiceA"},
+			{ID: "b", Type: "service", Name: "ServiceB"},
+			{ID: "c", Type: "service", Name: "ServiceC"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "a", Target: "b", Label: "HTTP"},
+			{ID: "e2", Source: "b", Target: "c", Label: "gRPC"},
+			{ID: "e3", Source: "c", Target: "a", Label: "HTTP"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "Circular dependency") {
+		t.Error("expected prompt to mention circular dependency for cycle")
+	}
+}
+
+func TestBuildPrompt_BidirectionalEdges(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "a", Type: "service", Name: "ServiceA"},
+			{ID: "b", Type: "service", Name: "ServiceB"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "a", Target: "b", Label: "gRPC", Direction: "bidirectional", Protocol: "grpc"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "Bidirectional") {
+		t.Error("expected prompt to highlight bidirectional dependencies")
+	}
+	if !strings.Contains(result, "ServiceA") || !strings.Contains(result, "ServiceB") {
+		t.Error("expected bidirectional edge to reference both service names")
+	}
+}
+
+func TestBuildPrompt_HighFanOutWarning(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "gw", Type: "apiGateway", Name: "Gateway"},
+			{ID: "s1", Type: "service", Name: "S1"},
+			{ID: "s2", Type: "service", Name: "S2"},
+			{ID: "s3", Type: "service", Name: "S3"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "gw", Target: "s1"},
+			{ID: "e2", Source: "gw", Target: "s2"},
+			{ID: "e3", Source: "gw", Target: "s3"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "High fan-out") || !strings.Contains(result, "Gateway") {
+		t.Error("expected high fan-out warning for Gateway with 3 outgoing connections")
+	}
+}
+
+func TestBuildPrompt_DisconnectedSubgraphs(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "a", Type: "service", Name: "A"},
+			{ID: "b", Type: "service", Name: "B"},
+			{ID: "c", Type: "service", Name: "C"},
+			{ID: "d", Type: "service", Name: "D"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "a", Target: "b"},
+			{ID: "e2", Source: "c", Target: "d"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "Disconnected subgraphs") {
+		t.Error("expected prompt to mention disconnected subgraphs")
+	}
+}
+
+func TestBuildPrompt_SyncChainDepth(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "a", Type: "service", Name: "A"},
+			{ID: "b", Type: "service", Name: "B"},
+			{ID: "c", Type: "service", Name: "C"},
+			{ID: "d", Type: "service", Name: "D"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "a", Target: "b", SyncAsync: "sync"},
+			{ID: "e2", Source: "b", Target: "c", SyncAsync: "sync"},
+			{ID: "e3", Source: "c", Target: "d", SyncAsync: "sync"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "Sync chain depth") {
+		t.Error("expected prompt to mention sync chain depth for 3-hop chain")
+	}
+}
+
+func TestBuildPrompt_ReplicaCount(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API", ReplicaCount: 3},
+			{ID: "n2", Type: "databaseSql", Name: "DB"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2"},
+		},
+	}
+
+	result := BuildPrompt(g, Analyze(g))
+
+	if !strings.Contains(result, "3 replicas") {
+		t.Error("expected prompt to mention replica count")
+	}
+	if !strings.Contains(result, "Scaled services") {
+		t.Error("expected prompt to mention scaled services")
+	}
+}
+
+func TestBuildPromptWithPending_EdgeModifyProtocolOnly(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "DB"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "http"},
+		},
+	}
+	analysis := Analyze(g)
+	pending := &PendingSuggestions{
+		ModifyEdges: []PendingEdgeModify{{Source: "API", Target: "DB", NewProtocol: "grpc"}},
+	}
+
+	prompt := BuildPromptWithPending(g, analysis, pending)
+
+	if !strings.Contains(prompt, "protocol→grpc") {
+		t.Error("expected protocol modification in pending changes")
+	}
+	// Should NOT have direction since NewDirection is empty
+	if strings.Contains(prompt, "direction→") {
+		t.Error("should not include direction when NewDirection is empty")
+	}
+}

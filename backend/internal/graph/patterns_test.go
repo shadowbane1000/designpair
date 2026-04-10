@@ -497,3 +497,471 @@ func TestDetectPatterns_ServerlessCounts(t *testing.T) {
 		t.Error("expected Microservices pattern with serverless functions having dedicated stores")
 	}
 }
+
+func TestDetectPatterns_SingleNode(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	// Single service with no data store should not trigger Monolith (needs a data store)
+	if hasPattern(patterns, "Monolith") {
+		t.Error("single service with no data store should not be Monolith")
+	}
+	// Nothing else should trigger either
+	for _, p := range patterns {
+		t.Errorf("unexpected pattern %q for single node graph", p.Name)
+	}
+}
+
+func TestDetectPatterns_DisconnectedSubgraphs(t *testing.T) {
+	// Two independent subgraphs: each has a service + DB
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "s1", Type: "service", Name: "Service A"},
+			{ID: "db1", Type: "databaseSql", Name: "DB A"},
+			{ID: "s2", Type: "service", Name: "Service B"},
+			{ID: "db2", Type: "databaseSql", Name: "DB B"},
+			// Third subgraph needed for microservices threshold
+			{ID: "s3", Type: "service", Name: "Service C"},
+			{ID: "db3", Type: "databaseNosql", Name: "DB C"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "s1", Target: "db1", Protocol: "sql"},
+			{ID: "e2", Source: "s2", Target: "db2", Protocol: "sql"},
+			{ID: "e3", Source: "s3", Target: "db3", Protocol: "tcp"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	// Should detect microservices even with disconnected subgraphs
+	if !hasPattern(patterns, "Microservices") {
+		t.Error("expected Microservices even with disconnected subgraphs")
+	}
+	// Should NOT detect Monolith (multiple services)
+	if hasPattern(patterns, "Monolith") {
+		t.Error("should not detect Monolith with multiple services in disconnected subgraphs")
+	}
+}
+
+func TestDetectPatterns_CQRS_NegativeSingleServiceWithCache(t *testing.T) {
+	// Single service with both a DB and a cache — NOT CQRS (same service)
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "s", Type: "service", Name: "API"},
+			{ID: "db", Type: "databaseSql", Name: "Primary DB"},
+			{ID: "c", Type: "cache", Name: "Redis Cache"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "s", Target: "db", Protocol: "sql"},
+			{ID: "e2", Source: "s", Target: "c", Protocol: "tcp"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if hasPattern(patterns, "CQRS") {
+		t.Error("single service with cache should NOT trigger CQRS — requires different services for read/write")
+	}
+}
+
+func TestDetectPatterns_EventSourcing_StreamProcessor(t *testing.T) {
+	// streamProcessor should also trigger Event Sourcing, not just eventBus
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "svc", Type: "service", Name: "Order Service"},
+			{ID: "sp", Type: "streamProcessor", Name: "Kafka"},
+			{ID: "proj1", Type: "service", Name: "Analytics"},
+			{ID: "proj2", Type: "service", Name: "Search Indexer"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "svc", Target: "sp", Protocol: "pubsub", SyncAsync: "async"},
+			{ID: "e2", Source: "sp", Target: "proj1", Protocol: "pubsub"},
+			{ID: "e3", Source: "sp", Target: "proj2", Protocol: "pubsub"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if !hasPattern(patterns, "Event Sourcing") {
+		t.Error("expected Event Sourcing with streamProcessor")
+	}
+}
+
+func TestDetectPatterns_EventSourcing_NegativeNoProducer(t *testing.T) {
+	// Event bus with consumers but no producer service
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "bus", Type: "eventBus", Name: "Event Bus"},
+			{ID: "c1", Type: "service", Name: "Consumer A"},
+			{ID: "c2", Type: "service", Name: "Consumer B"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "bus", Target: "c1"},
+			{ID: "e2", Source: "bus", Target: "c2"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if hasPattern(patterns, "Event Sourcing") {
+		t.Error("should not detect Event Sourcing when no producer writes to the bus")
+	}
+}
+
+func TestDetectPatterns_Saga_InferredAsync(t *testing.T) {
+	// Saga with async inferred from protocol rather than explicit SyncAsync
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "s1", Type: "service", Name: "Order"},
+			{ID: "q1", Type: "messageQueue", Name: "Q1"},
+			{ID: "s2", Type: "service", Name: "Payment"},
+			{ID: "q2", Type: "messageQueue", Name: "Q2"},
+			{ID: "s3", Type: "service", Name: "Shipping"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "s1", Target: "q1", Protocol: "async"}, // inferred async from protocol
+			{ID: "e2", Source: "q1", Target: "s2"},
+			{ID: "e3", Source: "s2", Target: "q2", Protocol: "pubsub"}, // inferred async from protocol
+			{ID: "e4", Source: "q2", Target: "s3"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if !hasPattern(patterns, "Saga") {
+		t.Error("expected Saga when async is inferred from protocol field")
+	}
+}
+
+func TestDetectPatterns_FanOut_NegativeTwoTargets(t *testing.T) {
+	// Only 2 same-type targets: below threshold
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "lb", Type: "loadBalancer", Name: "LB"},
+			{ID: "s1", Type: "service", Name: "Service A"},
+			{ID: "s2", Type: "service", Name: "Service B"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "lb", Target: "s1", Protocol: "http"},
+			{ID: "e2", Source: "lb", Target: "s2", Protocol: "http"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if hasPattern(patterns, "Fan-out") {
+		t.Error("should not detect Fan-out with only 2 same-type targets (threshold is 3)")
+	}
+}
+
+func TestDetectPatterns_APIGateway_LoadBalancer(t *testing.T) {
+	// loadBalancer type should also detect API Gateway pattern (isGateway includes LB)
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "client", Type: "webClient", Name: "Browser"},
+			{ID: "lb", Type: "loadBalancer", Name: "Load Balancer"},
+			{ID: "s1", Type: "service", Name: "Service A"},
+			{ID: "s2", Type: "service", Name: "Service B"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e0", Source: "client", Target: "lb", Protocol: "http"},
+			{ID: "e1", Source: "lb", Target: "s1", Protocol: "http"},
+			{ID: "e2", Source: "lb", Target: "s2", Protocol: "http"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if !hasPattern(patterns, "API Gateway") {
+		t.Error("expected API Gateway with loadBalancer type routing to 2+ services")
+	}
+}
+
+func TestDetectPatterns_APIGateway_NoClient(t *testing.T) {
+	// API Gateway without a client node — should still detect but with fewer evidence items
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "gw", Type: "apiGateway", Name: "Gateway"},
+			{ID: "s1", Type: "service", Name: "Service A"},
+			{ID: "s2", Type: "service", Name: "Service B"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "gw", Target: "s1", Protocol: "http"},
+			{ID: "e2", Source: "gw", Target: "s2", Protocol: "grpc"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if !hasPattern(patterns, "API Gateway") {
+		t.Error("expected API Gateway even without a client node")
+	}
+
+	p := getPattern(patterns, "API Gateway")
+	// Without a client, evidence should only have the routes line
+	if len(p.Evidence) != 1 {
+		t.Errorf("expected 1 evidence item (no client), got %d", len(p.Evidence))
+	}
+}
+
+func TestDetectPatterns_Microservices_MixedDedicatedAndShared(t *testing.T) {
+	// 3 services: 2 with dedicated stores, 1 sharing — should not detect (only 2 dedicated)
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "s1", Type: "service", Name: "User Service"},
+			{ID: "db1", Type: "databaseSql", Name: "User DB"},
+			{ID: "s2", Type: "service", Name: "Order Service"},
+			{ID: "db2", Type: "databaseSql", Name: "Order DB"},
+			{ID: "s3", Type: "service", Name: "Analytics"},
+			// s3 shares db2 with s2
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "s1", Target: "db1"},
+			{ID: "e2", Source: "s2", Target: "db2"},
+			{ID: "e3", Source: "s3", Target: "db2"}, // shared
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	// db2 is shared by s2 and s3 — so only s1 has a truly dedicated store
+	// That's only 1 dedicated service, below the 3 threshold
+	if hasPattern(patterns, "Microservices") {
+		t.Error("should not detect Microservices when most services share databases")
+	}
+}
+
+func TestDetectPatterns_Monolith_NegativeServiceNoDataStore(t *testing.T) {
+	// Single service but connects only to another service, no data store
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "s1", Type: "service", Name: "API"},
+			{ID: "s2", Type: "service", Name: "Worker"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "s1", Target: "s2", Protocol: "http"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if hasPattern(patterns, "Monolith") {
+		t.Error("should not detect Monolith: multiple services exist")
+	}
+}
+
+func TestDetectPatterns_AllSevenDetectable(t *testing.T) {
+	// Verify that all 7 pattern detectors can trigger by listing them
+	patternNames := []string{
+		"CQRS", "Event Sourcing", "Saga", "Fan-out",
+		"API Gateway", "Microservices", "Monolith",
+	}
+
+	tests := []struct {
+		name     string
+		graph    model.GraphState
+		expected string
+	}{
+		{
+			name: "CQRS",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "w", Type: "service", Name: "Writer"},
+					{ID: "r", Type: "service", Name: "Reader"},
+					{ID: "db", Type: "databaseSql", Name: "DB"},
+					{ID: "c", Type: "cache", Name: "Cache"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e1", Source: "w", Target: "db"},
+					{ID: "e2", Source: "r", Target: "c"},
+				},
+			},
+			expected: "CQRS",
+		},
+		{
+			name: "Event Sourcing",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "p", Type: "service", Name: "Producer"},
+					{ID: "b", Type: "eventBus", Name: "Bus"},
+					{ID: "c1", Type: "service", Name: "Consumer1"},
+					{ID: "c2", Type: "service", Name: "Consumer2"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e1", Source: "p", Target: "b"},
+					{ID: "e2", Source: "b", Target: "c1"},
+					{ID: "e3", Source: "b", Target: "c2"},
+				},
+			},
+			expected: "Event Sourcing",
+		},
+		{
+			name: "Saga",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "s1", Type: "service", Name: "A"},
+					{ID: "q1", Type: "messageQueue", Name: "Q1"},
+					{ID: "s2", Type: "service", Name: "B"},
+					{ID: "q2", Type: "messageQueue", Name: "Q2"},
+					{ID: "s3", Type: "service", Name: "C"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e1", Source: "s1", Target: "q1", SyncAsync: "async"},
+					{ID: "e2", Source: "q1", Target: "s2"},
+					{ID: "e3", Source: "s2", Target: "q2", SyncAsync: "async"},
+					{ID: "e4", Source: "q2", Target: "s3"},
+				},
+			},
+			expected: "Saga",
+		},
+		{
+			name: "Fan-out",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "gw", Type: "apiGateway", Name: "GW"},
+					{ID: "s1", Type: "service", Name: "S1"},
+					{ID: "s2", Type: "service", Name: "S2"},
+					{ID: "s3", Type: "service", Name: "S3"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e1", Source: "gw", Target: "s1"},
+					{ID: "e2", Source: "gw", Target: "s2"},
+					{ID: "e3", Source: "gw", Target: "s3"},
+				},
+			},
+			expected: "Fan-out",
+		},
+		{
+			name: "API Gateway",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "c", Type: "webClient", Name: "Client"},
+					{ID: "gw", Type: "apiGateway", Name: "GW"},
+					{ID: "s1", Type: "service", Name: "S1"},
+					{ID: "s2", Type: "service", Name: "S2"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e0", Source: "c", Target: "gw"},
+					{ID: "e1", Source: "gw", Target: "s1"},
+					{ID: "e2", Source: "gw", Target: "s2"},
+				},
+			},
+			expected: "API Gateway",
+		},
+		{
+			name: "Microservices",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "s1", Type: "service", Name: "S1"},
+					{ID: "d1", Type: "databaseSql", Name: "D1"},
+					{ID: "s2", Type: "service", Name: "S2"},
+					{ID: "d2", Type: "databaseNosql", Name: "D2"},
+					{ID: "s3", Type: "service", Name: "S3"},
+					{ID: "d3", Type: "cache", Name: "D3"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e1", Source: "s1", Target: "d1"},
+					{ID: "e2", Source: "s2", Target: "d2"},
+					{ID: "e3", Source: "s3", Target: "d3"},
+				},
+			},
+			expected: "Microservices",
+		},
+		{
+			name: "Monolith",
+			graph: model.GraphState{
+				Nodes: []model.GraphNode{
+					{ID: "app", Type: "service", Name: "App"},
+					{ID: "db", Type: "databaseSql", Name: "DB"},
+				},
+				Edges: []model.GraphEdge{
+					{ID: "e1", Source: "app", Target: "db"},
+				},
+			},
+			expected: "Monolith",
+		},
+	}
+
+	covered := make(map[string]bool)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			analysis := Analyze(tt.graph)
+			patterns := DetectPatterns(tt.graph, analysis)
+			if !hasPattern(patterns, tt.expected) {
+				t.Errorf("expected pattern %q, got %v", tt.expected, patterns)
+			}
+			covered[tt.expected] = true
+		})
+	}
+
+	for _, name := range patternNames {
+		if !covered[name] {
+			t.Errorf("pattern %q not covered by AllSevenDetectable test", name)
+		}
+	}
+}
+
+func TestDetectPatterns_Saga_NegativeSyncEdges(t *testing.T) {
+	// 3 services connected through queues but all sync — not Saga
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "s1", Type: "service", Name: "Order"},
+			{ID: "q1", Type: "messageQueue", Name: "Q1"},
+			{ID: "s2", Type: "service", Name: "Payment"},
+			{ID: "q2", Type: "messageQueue", Name: "Q2"},
+			{ID: "s3", Type: "service", Name: "Shipping"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "s1", Target: "q1", SyncAsync: "sync"},
+			{ID: "e2", Source: "q1", Target: "s2"},
+			{ID: "e3", Source: "s2", Target: "q2", SyncAsync: "sync"},
+			{ID: "e4", Source: "q2", Target: "s3"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if hasPattern(patterns, "Saga") {
+		t.Error("should not detect Saga when service-to-queue edges are explicitly sync")
+	}
+}
+
+func TestDetectPatterns_EventSourcing_DataStoreConsumer(t *testing.T) {
+	// Event bus with service producer and data store consumers
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "svc", Type: "service", Name: "Producer"},
+			{ID: "bus", Type: "eventBus", Name: "Bus"},
+			{ID: "db1", Type: "databaseSql", Name: "Projection DB"},
+			{ID: "c1", Type: "cache", Name: "Read Cache"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "svc", Target: "bus"},
+			{ID: "e2", Source: "bus", Target: "db1"},
+			{ID: "e3", Source: "bus", Target: "c1"},
+		},
+	}
+
+	analysis := Analyze(g)
+	patterns := DetectPatterns(g, analysis)
+
+	if !hasPattern(patterns, "Event Sourcing") {
+		t.Error("expected Event Sourcing with data store consumers from event bus")
+	}
+}
