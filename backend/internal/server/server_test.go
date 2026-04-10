@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/shadowbane1000/designpair/internal/llm"
 	"github.com/shadowbane1000/designpair/internal/ratelimit"
 )
@@ -15,6 +16,10 @@ type noopLLMClient struct{}
 
 func (n *noopLLMClient) StreamAnalysis(_ context.Context, _ string, _ []llm.ConversationTurn, _ func(string)) error {
 	return nil
+}
+
+func (n *noopLLMClient) StreamWithTools(_ context.Context, _ string, _ []anthropic.MessageParam, _ func(string)) (*llm.StreamResult, error) {
+	return &llm.StreamResult{StopReason: "end_turn"}, nil
 }
 
 func TestHealthCheck(t *testing.T) {

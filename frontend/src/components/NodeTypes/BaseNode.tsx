@@ -15,9 +15,20 @@ export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supports
   const { id, data } = nodeProps
   const { updateNodeData } = useReactFlow()
   const replicaCount = data.replicaCount ?? 1
+  const pendingStatus = data.pendingStatus
+  const isPending = pendingStatus && pendingStatus !== 'committed'
+  const oldValues = data.pendingOldValues
+  const nameChanged = pendingStatus === 'pendingModify' && oldValues?.name && oldValues.name !== data.label
+  const oldReplicaCount = oldValues?.replicaCount ?? 1
+  const replicaChanged = pendingStatus === 'pendingModify' && oldReplicaCount !== replicaCount
+
+  const pendingClass =
+    pendingStatus === 'pendingAdd' ? 'node-pending-add' :
+    pendingStatus === 'pendingDelete' ? 'node-pending-delete' :
+    pendingStatus === 'pendingModify' ? 'node-pending-modify' : ''
 
   return (
-    <div className={`architecture-node ${className}`} data-testid={`node-${id}`}>
+    <div className={`architecture-node ${className} ${pendingClass}`} data-testid={`node-${id}`}>
       {/* Dual handles at each position: source + target overlapping */}
       <Handle type="target" position={Position.Top} id="top-target" className="handle-overlay" />
       <Handle type="source" position={Position.Top} id="top-source" className="handle-overlay" />
@@ -27,18 +38,33 @@ export function BaseNode({ nodeProps, className, typeLabel, icon: Icon, supports
       <div className="node-header">
         <Icon size={16} className="node-icon" />
         <span className="node-type-label">{typeLabel}</span>
-        {replicaCount > 1 && (
+        {replicaChanged ? (
+          <span className="node-replica-badge" data-testid={`replica-count-${id}`}>
+            <span className="node-old-value">×{oldReplicaCount}</span>
+            {' '}
+            <span className="node-new-value">×{replicaCount}</span>
+          </span>
+        ) : replicaCount > 1 ? (
           <span className="node-replica-badge" data-testid={`replica-count-${id}`}>×{replicaCount}</span>
-        )}
+        ) : null}
       </div>
-      <input
-        className="node-name-input nodrag nopan"
-        value={data.label}
-        onChange={(e) => {
-          updateNodeData(id, { label: e.target.value })
-        }}
-        data-testid={`node-name-${id}`}
-      />
+      {nameChanged ? (
+        <div className="node-name-input" data-testid={`node-name-${id}`}>
+          <span className="node-old-value">{oldValues.name}</span>
+          {' '}
+          <span className="node-new-value">{data.label}</span>
+        </div>
+      ) : (
+        <input
+          className="node-name-input nodrag nopan"
+          value={data.label}
+          onChange={(e) => {
+            updateNodeData(id, { label: e.target.value })
+          }}
+          readOnly={isPending}
+          data-testid={`node-name-${id}`}
+        />
+      )}
       {supportsReplicas && (
         <div className="node-replica-control">
           <button

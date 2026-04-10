@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/shadowbane1000/designpair/internal/llm"
@@ -14,8 +15,10 @@ import (
 )
 
 type mockLLMClient struct {
-	chunks []string
-	err    error
+	chunks     []string
+	err        error
+	toolCalls  []llm.ToolCall
+	stopReason string
 }
 
 func (m *mockLLMClient) StreamAnalysis(_ context.Context, _ string, _ []llm.ConversationTurn, onChunk func(string)) error {
@@ -23,6 +26,23 @@ func (m *mockLLMClient) StreamAnalysis(_ context.Context, _ string, _ []llm.Conv
 		onChunk(chunk)
 	}
 	return m.err
+}
+
+func (m *mockLLMClient) StreamWithTools(_ context.Context, _ string, _ []anthropic.MessageParam, onChunk func(string)) (*llm.StreamResult, error) {
+	text := ""
+	for _, chunk := range m.chunks {
+		text += chunk
+		onChunk(chunk)
+	}
+	stop := m.stopReason
+	if stop == "" {
+		stop = "end_turn"
+	}
+	return &llm.StreamResult{
+		TextContent: text,
+		ToolCalls:   m.toolCalls,
+		StopReason:  stop,
+	}, m.err
 }
 
 func TestHandler_AnalyzeRequest(t *testing.T) {
@@ -196,4 +216,60 @@ func TestHandler_TooManyNodesReturnsValidationError(t *testing.T) {
 	}
 
 	conn.Close(websocket.StatusNormalClosure, "done")
+}
+
+// --- Tool validation tests (T013) ---
+
+func TestValidateToolCall(t *testing.T) {
+	gs := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "Database"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n2", Protocol: "http", Direction: "oneWay"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		tool    string
+		input   string
+		wantErr bool
+	}{
+		// add_node
+		{name: "valid add_node", tool: "add_node", input: `{"type":"cache","name":"Redis"}`, wantErr: false},
+		{name: "add_node duplicate name", tool: "add_node", input: `{"type":"cache","name":"API"}`, wantErr: true},
+		{name: "add_node missing name", tool: "add_node", input: `{"type":"cache"}`, wantErr: true},
+		// delete_node
+		{name: "valid delete_node", tool: "delete_node", input: `{"name":"API"}`, wantErr: false},
+		{name: "delete_node not found", tool: "delete_node", input: `{"name":"Redis"}`, wantErr: true},
+		// modify_node
+		{name: "valid modify_node", tool: "modify_node", input: `{"name":"API","new_name":"Gateway"}`, wantErr: false},
+		{name: "modify_node name conflict", tool: "modify_node", input: `{"name":"API","new_name":"Database"}`, wantErr: true},
+		{name: "modify_node not found", tool: "modify_node", input: `{"name":"Redis","new_name":"Cache"}`, wantErr: true},
+		{name: "modify_node bad replica", tool: "modify_node", input: `{"name":"API","replica_count":0}`, wantErr: true},
+		// add_edge
+		{name: "valid add_edge", tool: "add_edge", input: `{"source":"API","target":"Database","protocol":"grpc"}`, wantErr: false},
+		{name: "add_edge duplicate", tool: "add_edge", input: `{"source":"API","target":"Database","protocol":"http"}`, wantErr: true},
+		{name: "add_edge source not found", tool: "add_edge", input: `{"source":"Redis","target":"Database"}`, wantErr: true},
+		// delete_edge
+		{name: "valid delete_edge", tool: "delete_edge", input: `{"source":"API","target":"Database","protocol":"http","direction":"oneWay"}`, wantErr: false},
+		{name: "delete_edge not found", tool: "delete_edge", input: `{"source":"API","target":"Database","protocol":"grpc"}`, wantErr: true},
+		// modify_edge
+		{name: "valid modify_edge", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"http","direction":"oneWay","new_protocol":"grpc"}`, wantErr: false},
+		{name: "modify_edge not found", tool: "modify_edge", input: `{"source":"API","target":"Database","protocol":"sql","new_protocol":"grpc"}`, wantErr: true},
+		// unknown tool
+		{name: "unknown tool", tool: "fly_to_moon", input: `{}`, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateToolCall(tt.tool, json.RawMessage(tt.input), gs)
+			isError := result != "success"
+			if isError != tt.wantErr {
+				t.Errorf("validateToolCall(%s, %s) = %q, wantErr=%v", tt.tool, tt.input, result, tt.wantErr)
+			}
+		})
+	}
 }

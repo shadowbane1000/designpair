@@ -2,8 +2,15 @@ package llm
 
 import "github.com/anthropics/anthropic-sdk-go"
 
-// ToolDefinitions defines the 6 diagram editing tools available to the AI.
+// ToolDefinitions defines the diagram editing tools available to the AI.
 var ToolDefinitions = []anthropic.ToolUnionParam{
+	{OfTool: &anthropic.ToolParam{
+		Name:        "list_node_types",
+		Description: anthropic.String("List all available component types that can be added to the diagram. Call this before add_node if you are unsure which types are available."),
+		InputSchema: anthropic.ToolInputSchemaParam{
+			Properties: map[string]any{},
+		},
+	}},
 	{OfTool: &anthropic.ToolParam{
 		Name:        "add_node",
 		Description: anthropic.String("Add a new architecture component to the diagram. Creates a pending suggestion that the user will approve or discard."),

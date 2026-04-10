@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/shadowbane1000/designpair/internal/llm"
 	"github.com/shadowbane1000/designpair/internal/ratelimit"
 	"github.com/shadowbane1000/designpair/internal/server"
@@ -63,4 +64,9 @@ type noopClient struct{}
 func (n *noopClient) StreamAnalysis(_ context.Context, _ string, _ []llm.ConversationTurn, onChunk func(string)) error {
 	onChunk("AI features are unavailable — ANTHROPIC_API_KEY is not configured.")
 	return nil
+}
+
+func (n *noopClient) StreamWithTools(_ context.Context, _ string, _ []anthropic.MessageParam, onChunk func(string)) (*llm.StreamResult, error) {
+	onChunk("AI features are unavailable — ANTHROPIC_API_KEY is not configured.")
+	return &llm.StreamResult{TextContent: "AI features are unavailable.", StopReason: "end_turn"}, nil
 }
