@@ -520,7 +520,9 @@ function AppContent() {
           autoAnalyzeEnabled={autoAnalyze.enabled}
           onToggleAutoAnalyze={autoAnalyze.toggle}
         />
-        <DebugPanel graphState={graphState.graphState} />
+        {new URLSearchParams(window.location.search).has('debug') && (
+          <DebugPanel graphState={graphState.graphState} />
+        )}
       </div>
       {edgeMenu && (() => {
         const edge = graphState.edges.find((e) => e.id === edgeMenu.edgeId)
