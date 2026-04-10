@@ -7,6 +7,7 @@ export interface ChatMessage {
   content: string
   status: 'streaming' | 'complete' | 'error' | 'validation_error'
   timestamp: number
+  isAutoAnalysis?: boolean
 }
 
 interface ChatPanelProps {
@@ -17,12 +18,14 @@ interface ChatPanelProps {
   turnsRemaining?: number | null
   inputValue?: string
   onInputChange?: (value: string) => void
+  autoAnalyzeEnabled: boolean
+  onToggleAutoAnalyze: () => void
 }
 
 const MAX_CHARS = 2000
 const DEFAULT_PROMPT = 'Analyze my architecture'
 
-export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsRemaining, inputValue, onInputChange }: ChatPanelProps) {
+export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsRemaining, inputValue, onInputChange, autoAnalyzeEnabled, onToggleAutoAnalyze }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const [internalInput, setInternalInput] = useState('')
 
@@ -54,7 +57,22 @@ export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsR
 
   return (
     <aside className="chat-panel" data-testid="chat-panel">
-      <h3 className="chat-panel-title">AI Collaborator</h3>
+      <div className="chat-panel-header">
+        <h3 className="chat-panel-title">AI Collaborator</h3>
+        <label className="auto-analyze-toggle" data-testid="auto-analyze-toggle">
+          <span className="auto-analyze-label">Auto</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoAnalyzeEnabled}
+            className={`auto-analyze-switch${autoAnalyzeEnabled ? ' auto-analyze-switch-on' : ''}`}
+            onClick={onToggleAutoAnalyze}
+            data-testid="auto-analyze-switch"
+          >
+            <span className="auto-analyze-thumb" />
+          </button>
+        </label>
+      </div>
       <div className="chat-messages">
         {messages.length === 0 && (
           <p className="chat-empty">Draw some components and press Enter to get architectural feedback, or type a question.</p>
@@ -65,7 +83,7 @@ export function ChatPanel({ messages, isStreaming, isConnected, onSubmit, turnsR
             className={`chat-message chat-message-${msg.role}`}
             data-testid={`chat-message-${msg.id}`}
           >
-            <div className="chat-message-role">{msg.role === 'user' ? 'You' : 'AI'}</div>
+            <div className="chat-message-role">{msg.role === 'user' ? 'You' : msg.isAutoAnalysis ? 'AI (auto-analysis)' : 'AI'}</div>
             <div className="chat-message-content">{msg.content}</div>
             {msg.status === 'error' && (
               <div className="chat-message-error">An error occurred</div>

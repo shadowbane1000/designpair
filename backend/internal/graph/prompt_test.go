@@ -122,6 +122,103 @@ func TestBuildPromptWithPending_ThreeViews(t *testing.T) {
 	}
 }
 
+func TestBuildAutoAnalyzeUserMessage_WithDelta(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+			{ID: "n2", Type: "databaseSql", Name: "DB"},
+			{ID: "n3", Type: "cache", Name: "Redis"},
+		},
+		Edges: []model.GraphEdge{
+			{ID: "e1", Source: "n1", Target: "n3", Protocol: "tcp"},
+		},
+	}
+	analysis := Analyze(g)
+	delta := &AutoAnalyzeDelta{
+		AddedNodes: []DeltaNode{{Type: "cache", Name: "Redis"}},
+		AddedEdges: []DeltaEdge{{Source: "API", Target: "Redis", Protocol: "tcp"}},
+	}
+
+	prompt := BuildAutoAnalyzeUserMessage(g, analysis, delta)
+
+	if !strings.Contains(prompt, "Recent Changes") {
+		t.Error("expected prompt to contain 'Recent Changes' section")
+	}
+	if !strings.Contains(prompt, "Redis") {
+		t.Error("expected prompt to mention added node 'Redis'")
+	}
+	if !strings.Contains(prompt, "cache") {
+		t.Error("expected prompt to mention node type 'cache'")
+	}
+	if !strings.Contains(prompt, "API") {
+		t.Error("expected prompt to mention edge source 'API'")
+	}
+	if !strings.Contains(prompt, "comment on these specific changes") {
+		t.Error("expected prompt to instruct AI to focus on delta")
+	}
+}
+
+func TestBuildAutoAnalyzeUserMessage_NilDelta(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+	analysis := Analyze(g)
+
+	prompt := BuildAutoAnalyzeUserMessage(g, analysis, nil)
+
+	if !strings.Contains(prompt, "first time auto-analyze") {
+		t.Error("expected prompt to indicate first-time analysis")
+	}
+	if !strings.Contains(prompt, "API") {
+		t.Error("expected prompt to include architecture overview")
+	}
+}
+
+func TestBuildAutoAnalyzeUserMessage_WithRemovedNodes(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "API"},
+		},
+	}
+	analysis := Analyze(g)
+	delta := &AutoAnalyzeDelta{
+		RemovedNodes: []DeltaNode{{Type: "cache", Name: "Redis"}},
+		RemovedEdges: []DeltaEdge{{Source: "API", Target: "Redis", Protocol: "tcp"}},
+	}
+
+	prompt := BuildAutoAnalyzeUserMessage(g, analysis, delta)
+
+	if !strings.Contains(prompt, "Removed") {
+		t.Error("expected prompt to mention removal")
+	}
+	if !strings.Contains(prompt, "Redis") {
+		t.Error("expected prompt to mention removed node")
+	}
+}
+
+func TestBuildAutoAnalyzeUserMessage_WithModifications(t *testing.T) {
+	g := model.GraphState{
+		Nodes: []model.GraphNode{
+			{ID: "n1", Type: "service", Name: "Gateway"},
+		},
+	}
+	analysis := Analyze(g)
+	delta := &AutoAnalyzeDelta{
+		ModifiedNodes: []DeltaModify{{Name: "Gateway", Field: "name", OldValue: "API", NewValue: "Gateway"}},
+	}
+
+	prompt := BuildAutoAnalyzeUserMessage(g, analysis, delta)
+
+	if !strings.Contains(prompt, "Modified") {
+		t.Error("expected prompt to mention modification")
+	}
+	if !strings.Contains(prompt, "Gateway") {
+		t.Error("expected prompt to mention modified node name")
+	}
+}
+
 func TestBuildPromptWithPending_NoPending(t *testing.T) {
 	g := model.GraphState{
 		Nodes: []model.GraphNode{

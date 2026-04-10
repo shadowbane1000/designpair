@@ -197,3 +197,31 @@ export interface GraphState {
   nodes: SerializedNode[]
   edges: SerializedEdge[]
 }
+
+// Delta between two graph snapshots for auto-analyze
+export interface DeltaNode {
+  type: string
+  name: string
+}
+
+export interface DeltaEdge {
+  source: string
+  target: string
+  protocol?: string
+}
+
+export interface DeltaModify {
+  name: string
+  field: string
+  oldValue: string
+  newValue: string
+}
+
+export interface GraphDelta {
+  addedNodes: DeltaNode[]
+  removedNodes: DeltaNode[]
+  addedEdges: DeltaEdge[]
+  removedEdges: DeltaEdge[]
+  modifiedNodes: DeltaModify[]
+  modifiedEdges: DeltaModify[]
+}

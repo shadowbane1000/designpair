@@ -105,6 +105,8 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 - TypeScript 5.x (frontend), Go 1.24 (backend) + Existing stack + Anthropic SDK tool_use feature (no new library deps) (007-ai-collaboration-tools)
 - TypeScript 5.x (frontend), Go 1.24 (backend) + React 19, @xyflow/react 12, Vite 6 (frontend); net/http, github.com/coder/websocket, anthropic-sdk-go (backend) (008-ai-abuse-hardening)
 - None (in-memory rate limit state, ephemeral per-connection session state — consistent with ADR-005) (008-ai-abuse-hardening)
+- TypeScript 5.x (frontend), Go 1.24 (backend) + Existing stack (no new deps) (009-ai-proactivity)
+- None (session-only auto-analyze state — consistent with ADR-005) (009-ai-proactivity)
 
 ## Recent Changes
 - 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)

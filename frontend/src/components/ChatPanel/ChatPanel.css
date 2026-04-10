@@ -7,15 +7,70 @@
   overflow: hidden;
 }
 
-.chat-panel-title {
+.chat-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chat-panel-title {
+  padding: 0;
   margin: 0;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #6b7280;
-  border-bottom: 1px solid #e5e7eb;
   font-weight: 600;
+}
+
+/* Auto-analyze toggle */
+.auto-analyze-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.auto-analyze-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.auto-analyze-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  border: none;
+  background: #d1d5db;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.auto-analyze-switch-on {
+  background: #3b82f6;
+}
+
+.auto-analyze-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+
+.auto-analyze-switch-on .auto-analyze-thumb {
+  transform: translateX(14px);
 }
 
 .chat-messages {

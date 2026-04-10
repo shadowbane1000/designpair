@@ -258,6 +258,80 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 	return b.String()
 }
 
+// DeltaNode describes a node in a graph delta.
+type DeltaNode struct {
+	Type string
+	Name string
+}
+
+// DeltaEdge describes an edge in a graph delta.
+type DeltaEdge struct {
+	Source, Target, Protocol string
+}
+
+// DeltaModify describes a property change.
+type DeltaModify struct {
+	Name, Field, OldValue, NewValue string
+}
+
+// AutoAnalyzeDelta holds the delta between graph snapshots for auto-analysis.
+type AutoAnalyzeDelta struct {
+	AddedNodes    []DeltaNode
+	RemovedNodes  []DeltaNode
+	AddedEdges    []DeltaEdge
+	RemovedEdges  []DeltaEdge
+	ModifiedNodes []DeltaModify
+	ModifiedEdges []DeltaModify
+}
+
+// BuildAutoAnalyzeUserMessage constructs the user message for auto-analysis.
+// It includes the full architecture overview plus a delta description.
+func BuildAutoAnalyzeUserMessage(g model.GraphState, analysis TopologyAnalysis, delta *AutoAnalyzeDelta) string {
+	var b strings.Builder
+
+	// Always include the current architecture for context
+	architecturePrompt := BuildPrompt(g, analysis)
+	b.WriteString(architecturePrompt)
+
+	if delta != nil {
+		b.WriteString("\n## Recent Changes\n\n")
+		b.WriteString("The user just made the following changes to their architecture:\n\n")
+
+		for _, n := range delta.AddedNodes {
+			b.WriteString(fmt.Sprintf("- **Added** component: %s (%s)\n", n.Name, n.Type))
+		}
+		for _, n := range delta.RemovedNodes {
+			b.WriteString(fmt.Sprintf("- **Removed** component: %s (%s)\n", n.Name, n.Type))
+		}
+		for _, e := range delta.AddedEdges {
+			proto := e.Protocol
+			if proto == "" {
+				proto = "unspecified protocol"
+			}
+			b.WriteString(fmt.Sprintf("- **Added** connection: %s → %s [%s]\n", e.Source, e.Target, proto))
+		}
+		for _, e := range delta.RemovedEdges {
+			proto := e.Protocol
+			if proto == "" {
+				proto = "unspecified protocol"
+			}
+			b.WriteString(fmt.Sprintf("- **Removed** connection: %s → %s [%s]\n", e.Source, e.Target, proto))
+		}
+		for _, m := range delta.ModifiedNodes {
+			b.WriteString(fmt.Sprintf("- **Modified** component %s: %s changed from %q to %q\n", m.Name, m.Field, m.OldValue, m.NewValue))
+		}
+		for _, m := range delta.ModifiedEdges {
+			b.WriteString(fmt.Sprintf("- **Modified** connection %s: %s changed from %q to %q\n", m.Name, m.Field, m.OldValue, m.NewValue))
+		}
+
+		b.WriteString("\nPlease comment on these specific changes and their architectural implications.")
+	} else {
+		b.WriteString("\nThis is the first time auto-analyze is running. Please provide an initial architectural assessment.")
+	}
+
+	return b.String()
+}
+
 func nodeByIDLookup(nodes []model.GraphNode, id string) string {
 	for _, n := range nodes {
 		if n.ID == id {

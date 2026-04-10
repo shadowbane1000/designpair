@@ -1,4 +1,4 @@
-import type { GraphState } from './graph'
+import type { GraphState, GraphDelta } from './graph'
 
 // Envelope
 export interface WSMessage<T = unknown> {
@@ -12,6 +12,13 @@ export interface AnalyzeRequestPayload {
   graphState: GraphState
 }
 
+// Client → Server
+export interface AutoAnalyzeRequestPayload {
+  graphState: GraphState
+  delta: GraphDelta | null
+  pendingSuggestions?: unknown
+}
+
 // Server → Client
 export interface AIChunkPayload {
   requestId: string
@@ -21,6 +28,7 @@ export interface AIChunkPayload {
 export interface AIDonePayload {
   requestId: string
   turnsRemaining?: number
+  isAutoAnalysis?: boolean
 }
 
 export interface ErrorPayload {

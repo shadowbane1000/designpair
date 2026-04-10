@@ -10,6 +10,7 @@ import { ExampleSelector } from './components/ExampleSelector/ExampleSelector'
 import { useGraphState } from './hooks/useGraphState'
 import { useSuggestions } from './hooks/useSuggestions'
 import { useWebSocket } from './hooks/useWebSocket'
+import { useAutoAnalyze } from './hooks/useAutoAnalyze'
 import type { WSMessage, ValidationErrorPayload } from './types/websocket'
 import type { ExampleDiagram } from './data/examples'
 
@@ -102,15 +103,16 @@ function AppContent() {
           }
           flushBuffer()
           setIsStreaming(false)
-          const donePayload = msg.payload as { requestId: string; turnsRemaining?: number }
+          const donePayload = msg.payload as { requestId: string; turnsRemaining?: number; isAutoAnalysis?: boolean }
           if (donePayload.turnsRemaining != null) {
             setTurnsRemaining(donePayload.turnsRemaining)
           }
           const doneId = currentMessageIdRef.current
           if (doneId) {
+            const isAuto = donePayload.isAutoAnalysis === true
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === doneId ? { ...m, status: 'complete' as const } : m,
+                m.id === doneId ? { ...m, status: 'complete' as const, isAutoAnalysis: isAuto || m.isAutoAnalysis } : m,
               ),
             )
           }
@@ -202,8 +204,70 @@ function AppContent() {
 
   const { status, send } = useWebSocket({ url: WS_URL, onMessage })
 
+  // Track which message IDs are auto-analysis for labeling
+  const autoAnalysisMessageIds = useRef(new Set<string>())
+
+  const handleAutoAnalyzeTrigger = useCallback(
+    (result: { graphState: import('./types/graph').GraphState; delta: import('./types/graph').GraphDelta }) => {
+      if (status !== 'connected' || isStreaming) return
+
+      const aiMessageId = crypto.randomUUID()
+      autoAnalysisMessageIds.current.add(aiMessageId)
+      currentMessageIdRef.current = aiMessageId
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: aiMessageId,
+          role: 'assistant',
+          content: '',
+          status: 'streaming',
+          timestamp: Date.now(),
+          isAutoAnalysis: true,
+        },
+      ])
+
+      setIsStreaming(true)
+      streamBufferRef.current = ''
+
+      send({
+        type: 'auto_analyze_request',
+        payload: { graphState: result.graphState, delta: result.delta },
+        requestId: aiMessageId,
+      })
+    },
+    [status, isStreaming, send],
+  )
+
+  const autoAnalyze = useAutoAnalyze({
+    isStreaming,
+    onTrigger: handleAutoAnalyzeTrigger,
+  })
+
+  // Watch for structural graph changes and trigger auto-analyze when enabled
+  const prevGraphStateRef = useRef(graphState.graphState)
+  const { enabled: autoEnabled, checkForChanges, onStreamEnd, cancelPending } = autoAnalyze
+  useEffect(() => {
+    if (autoEnabled && graphState.graphState !== prevGraphStateRef.current) {
+      checkForChanges(graphState.graphState)
+    }
+    prevGraphStateRef.current = graphState.graphState
+  }, [graphState.graphState, autoEnabled, checkForChanges])
+
+  // Flush queued auto-analysis when streaming ends
+  const prevStreamingRef = useRef(isStreaming)
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming && autoEnabled) {
+      onStreamEnd()
+    }
+    prevStreamingRef.current = isStreaming
+  }, [isStreaming, autoEnabled, onStreamEnd])
+
   const handleChatSubmit = useCallback((text: string) => {
     if (status !== 'connected' || isStreaming) return
+
+    // Cancel any pending auto-analyze trigger -- manual message takes priority
+    cancelPending()
 
     setMessages((prev) => [
       ...prev,
@@ -284,7 +348,7 @@ function AppContent() {
       payload: { text, graphState: graphState.graphState, pendingSuggestions },
       requestId: aiMessageId,
     })
-  }, [status, isStreaming, send, graphState.graphState, hasPending, suggestions, nodesRef, edgesRef])
+  }, [status, isStreaming, send, graphState.graphState, hasPending, suggestions, nodesRef, edgesRef, cancelPending])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
@@ -343,6 +407,8 @@ function AppContent() {
           turnsRemaining={turnsRemaining}
           inputValue={chatInput}
           onInputChange={setChatInput}
+          autoAnalyzeEnabled={autoAnalyze.enabled}
+          onToggleAutoAnalyze={autoAnalyze.toggle}
         />
         <DebugPanel graphState={graphState.graphState} />
       </div>

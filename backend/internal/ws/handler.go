@@ -66,6 +66,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.handleChatMessage(ctx, conn, msg, conversation, clientIP)
 		case "analyze_request":
 			h.handleAnalyzeRequestCompat(ctx, conn, msg, conversation, clientIP)
+		case "auto_analyze_request":
+			h.handleAutoAnalyze(ctx, conn, msg, conversation, clientIP)
 		default:
 			slog.Warn("Unknown message type", "type", msg.Type, "ip", clientIP)
 		}
@@ -95,6 +97,86 @@ func (h *Handler) handleAnalyzeRequestCompat(ctx context.Context, conn *websocke
 	}
 
 	h.processAnalysisWithPending(ctx, conn, msg.RequestID, "Analyze my architecture", req.GraphState, nil, conversation, clientIP)
+}
+
+func (h *Handler) handleAutoAnalyze(ctx context.Context, conn *websocket.Conn, msg WSMessage, conversation *llm.ConversationManager, clientIP string) {
+	var req AutoAnalyzePayload
+	if err := json.Unmarshal(msg.Payload, &req); err != nil {
+		sendError(ctx, conn, msg.RequestID, "Invalid request format")
+		return
+	}
+
+	if !h.validate(ctx, conn, msg.RequestID, req.GraphState, conversation, clientIP) {
+		return
+	}
+
+	analysis := graph.Analyze(req.GraphState)
+
+	// Convert WS delta to graph package delta
+	var graphDelta *graph.AutoAnalyzeDelta
+	if req.Delta != nil {
+		graphDelta = &graph.AutoAnalyzeDelta{}
+		for _, n := range req.Delta.AddedNodes {
+			graphDelta.AddedNodes = append(graphDelta.AddedNodes, graph.DeltaNode{Type: n.Type, Name: n.Name})
+		}
+		for _, n := range req.Delta.RemovedNodes {
+			graphDelta.RemovedNodes = append(graphDelta.RemovedNodes, graph.DeltaNode{Type: n.Type, Name: n.Name})
+		}
+		for _, e := range req.Delta.AddedEdges {
+			graphDelta.AddedEdges = append(graphDelta.AddedEdges, graph.DeltaEdge{Source: e.Source, Target: e.Target, Protocol: e.Protocol})
+		}
+		for _, e := range req.Delta.RemovedEdges {
+			graphDelta.RemovedEdges = append(graphDelta.RemovedEdges, graph.DeltaEdge{Source: e.Source, Target: e.Target, Protocol: e.Protocol})
+		}
+		for _, m := range req.Delta.ModifiedNodes {
+			graphDelta.ModifiedNodes = append(graphDelta.ModifiedNodes, graph.DeltaModify{Name: m.Name, Field: m.Field, OldValue: m.OldValue, NewValue: m.NewValue})
+		}
+		for _, m := range req.Delta.ModifiedEdges {
+			graphDelta.ModifiedEdges = append(graphDelta.ModifiedEdges, graph.DeltaModify{Name: m.Name, Field: m.Field, OldValue: m.OldValue, NewValue: m.NewValue})
+		}
+	}
+
+	userMessage := graph.BuildAutoAnalyzeUserMessage(req.GraphState, analysis, graphDelta)
+	conversation.AddUserTurn(userMessage)
+	turns := conversation.GetTurns()
+
+	slog.Info("Starting auto-analysis", "requestId", msg.RequestID, "ip", clientIP)
+
+	var allText strings.Builder
+
+	// Auto-analyze uses StreamAnalysis (no tools) with the auto-analyze system prompt
+	err := h.llmClient.StreamAnalysis(ctx, llm.AutoAnalyzeSystemPrompt, turns, func(text string) {
+		allText.WriteString(text)
+		sendChunk(ctx, conn, msg.RequestID, text)
+	})
+
+	if err != nil {
+		slog.Error("Auto-analysis failed", "requestId", msg.RequestID, "error", err, "ip", clientIP)
+		sendError(ctx, conn, msg.RequestID, "Auto-analysis failed. Please try again.")
+		return
+	}
+
+	conversation.AddAssistantTurn(allText.String())
+	conversation.IncrementTurn()
+
+	slog.Info("Auto-analysis complete", "requestId", msg.RequestID, "textLen", allText.Len(), "ip", clientIP)
+
+	donePayload := AIDonePayload{RequestID: msg.RequestID, IsAutoAnalysis: true}
+	remaining := conversation.TurnsRemaining()
+	if remaining <= 5 {
+		donePayload.TurnsRemaining = &remaining
+	}
+
+	done := WSMessage{
+		Type:      "ai_done",
+		RequestID: msg.RequestID,
+	}
+	payload, _ := json.Marshal(donePayload)
+	done.Payload = payload
+
+	if writeErr := wsjson.Write(ctx, conn, done); writeErr != nil {
+		slog.Error("WebSocket write error", "error", writeErr, "ip", clientIP)
+	}
 }
 
 // validate runs all pre-AI validation gates in order.

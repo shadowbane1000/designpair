@@ -19,6 +19,40 @@ type AnalyzeRequest struct {
 	GraphState model.GraphState `json:"graphState"`
 }
 
+type AutoAnalyzePayload struct {
+	GraphState         model.GraphState   `json:"graphState"`
+	Delta              *GraphDelta        `json:"delta,omitempty"`
+	PendingSuggestions *PendingSuggestions `json:"pendingSuggestions,omitempty"`
+}
+
+// GraphDelta describes what changed since the last analysis.
+type GraphDelta struct {
+	AddedNodes    []DeltaNode   `json:"addedNodes,omitempty"`
+	RemovedNodes  []DeltaNode   `json:"removedNodes,omitempty"`
+	AddedEdges    []DeltaEdge   `json:"addedEdges,omitempty"`
+	RemovedEdges  []DeltaEdge   `json:"removedEdges,omitempty"`
+	ModifiedNodes []DeltaModify `json:"modifiedNodes,omitempty"`
+	ModifiedEdges []DeltaModify `json:"modifiedEdges,omitempty"`
+}
+
+type DeltaNode struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+type DeltaEdge struct {
+	Source   string `json:"source"`
+	Target  string `json:"target"`
+	Protocol string `json:"protocol,omitempty"`
+}
+
+type DeltaModify struct {
+	Name     string `json:"name"`
+	Field    string `json:"field"`
+	OldValue string `json:"oldValue"`
+	NewValue string `json:"newValue"`
+}
+
 type ChatMessagePayload struct {
 	Text               string              `json:"text"`
 	GraphState         model.GraphState    `json:"graphState"`
@@ -88,6 +122,7 @@ type AIChunkPayload struct {
 type AIDonePayload struct {
 	RequestID      string `json:"requestId"`
 	TurnsRemaining *int   `json:"turnsRemaining,omitempty"`
+	IsAutoAnalysis bool   `json:"isAutoAnalysis,omitempty"`
 }
 
 type ErrorPayload struct {
