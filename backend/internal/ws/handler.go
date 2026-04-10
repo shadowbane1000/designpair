@@ -224,6 +224,14 @@ func (h *Handler) processAnalysisWithPending(ctx context.Context, conn *websocke
 
 	analysis := graph.Analyze(gs)
 
+	if len(analysis.DetectedPatterns) > 0 {
+		patternNames := make([]string, len(analysis.DetectedPatterns))
+		for i, p := range analysis.DetectedPatterns {
+			patternNames[i] = p.Name
+		}
+		slog.Info("Patterns detected", "requestId", requestID, "patterns", patternNames)
+	}
+
 	// Convert WS pending suggestions to graph package format
 	var graphPending *graph.PendingSuggestions
 	if pending != nil {

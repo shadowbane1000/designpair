@@ -4,20 +4,21 @@ import "github.com/shadowbane1000/designpair/internal/model"
 
 // TopologyAnalysis contains pre-computed graph properties for prompt construction.
 type TopologyAnalysis struct {
-	EntryPoints          []string         `json:"entryPoints"`
-	LeafNodes            []string         `json:"leafNodes"`
-	FanIn                map[string]int   `json:"fanIn"`
-	FanOut               map[string]int   `json:"fanOut"`
-	SinglePointsOfFailure []string        `json:"singlePointsOfFailure"`
-	Cycles               [][]string       `json:"cycles"`
-	ConnectedComponents  int              `json:"connectedComponents"`
-	EdgeProtocols        map[string]int   `json:"edgeProtocols"`
-	NodesByType          map[string]int   `json:"nodesByType"`
-	ScaledNodes          map[string]int   `json:"scaledNodes"`
-	SyncChainDepth       int              `json:"syncChainDepth"`
-	AsyncBoundaries      []string         `json:"asyncBoundaries"`
-	BidirectionalEdges   []string         `json:"bidirectionalEdges"`
-	ProtocolDistribution map[string]int   `json:"protocolDistribution"`
+	EntryPoints          []string            `json:"entryPoints"`
+	LeafNodes            []string            `json:"leafNodes"`
+	FanIn                map[string]int      `json:"fanIn"`
+	FanOut               map[string]int      `json:"fanOut"`
+	SinglePointsOfFailure []string           `json:"singlePointsOfFailure"`
+	Cycles               [][]string          `json:"cycles"`
+	ConnectedComponents  int                 `json:"connectedComponents"`
+	EdgeProtocols        map[string]int      `json:"edgeProtocols"`
+	NodesByType          map[string]int      `json:"nodesByType"`
+	ScaledNodes          map[string]int      `json:"scaledNodes"`
+	SyncChainDepth       int                 `json:"syncChainDepth"`
+	AsyncBoundaries      []string            `json:"asyncBoundaries"`
+	BidirectionalEdges   []string            `json:"bidirectionalEdges"`
+	ProtocolDistribution map[string]int      `json:"protocolDistribution"`
+	DetectedPatterns     []DetectedPattern   `json:"detectedPatterns"`
 }
 
 // Analyze computes topology properties from a graph state.
@@ -117,6 +118,9 @@ func Analyze(g model.GraphState) TopologyAnalysis {
 
 	// Cycle detection
 	analysis.Cycles = findCycles(g.Nodes, outEdges, nodeByID)
+
+	// Pattern recognition
+	analysis.DetectedPatterns = DetectPatterns(g, analysis)
 
 	return analysis
 }

@@ -107,6 +107,8 @@ Tyler is learning Go (second project, growing proficiency) and refreshing TypeSc
 - None (in-memory rate limit state, ephemeral per-connection session state — consistent with ADR-005) (008-ai-abuse-hardening)
 - TypeScript 5.x (frontend), Go 1.24 (backend) + Existing stack (no new deps) (009-ai-proactivity)
 - None (session-only auto-analyze state — consistent with ADR-005) (009-ai-proactivity)
+- Go 1.24 (backend only) + None new — extends existing `internal/graph` package (010-pattern-recognition)
+- N/A (no persistence) (010-pattern-recognition)
 
 ## Recent Changes
 - 001-empty-canvas: Added TypeScript 5.x (frontend), Go 1.24+ (backend) + React 19, React Flow 12, Vite 6 (frontend); net/http (backend)

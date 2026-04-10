@@ -185,6 +185,17 @@ func BuildPromptWithPending(g model.GraphState, analysis TopologyAnalysis, pendi
 		}
 	}
 
+	// Detected architectural patterns
+	if len(analysis.DetectedPatterns) > 0 {
+		b.WriteString("\n### Detected Architectural Patterns\n")
+		for _, p := range analysis.DetectedPatterns {
+			b.WriteString(fmt.Sprintf("- **%s**: %s\n", p.Name, p.Description))
+			for _, ev := range p.Evidence {
+				b.WriteString(fmt.Sprintf("  - %s\n", ev))
+			}
+		}
+	}
+
 	b.WriteString("\n")
 
 	// Three-view: Proposed Changes section
