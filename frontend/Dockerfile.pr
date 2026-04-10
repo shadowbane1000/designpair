@@ -22,7 +22,7 @@ RUN BASE_PATH=$(echo "${VITE_BASE}" | sed 's:/$::') && \
         try_files $uri $uri/ %s/index.html;\n\
     }\n\
     location %s/ws {\n\
-        proxy_pass http://backend:8081;\n\
+        proxy_pass http://backend:8081/ws;\n\
         proxy_http_version 1.1;\n\
         proxy_set_header Upgrade $http_upgrade;\n\
         proxy_set_header Connection "upgrade";\n\
