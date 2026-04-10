@@ -41,11 +41,12 @@ function AppContent() {
   const [showExamples, setShowExamples] = useState(false)
   const [pendingExample, setPendingExample] = useState<ExampleDiagram | null>(null)
   const [chatInput, setChatInput] = useState('')
+  const [annotationPanel, setAnnotationPanel] = useState<{ nodeId: string; x: number; y: number } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [annotationPanel, setAnnotationPanel] = useState<{ nodeId: string; x: number; y: number } | null>(null)
+  const sendRef = useRef<((data: unknown) => void) | null>(null)
 
-  // Derive active annotation panel: auto-hide if target node was removed
+  // Annotation panel: auto-close if the target node no longer exists
   const annotationNodeExists = annotationPanel ? graphState.nodes.some((n) => n.id === annotationPanel.nodeId) : false
   const activeAnnotationPanel = annotationPanel && annotationNodeExists ? annotationPanel : null
 
@@ -69,7 +70,17 @@ function AppContent() {
 
   const handlePaneClick = useCallback(() => {
     setEdgeMenu(null)
+    setAnnotationPanel(null)
   }, [])
+
+  const resetChat = useCallback(() => {
+    setMessages([])
+    setTurnsRemaining(null)
+    discardAll()
+    if (sendRef.current) {
+      sendRef.current({ type: 'reset_conversation' })
+    }
+  }, [discardAll])
 
   const handleExport = useCallback(() => {
     exportDiagram(graphState.nodes, graphState.edges)
@@ -87,12 +98,13 @@ function AppContent() {
       const result = parseDiagramFile(reader.result as string)
       if (result) {
         graphState.loadExample(result.nodes, result.edges)
+        resetChat()
       }
     }
     reader.readAsText(file)
     // Reset so the same file can be re-imported
     e.target.value = ''
-  }, [graphState])
+  }, [graphState, resetChat])
   const canvasHasContent = graphState.nodes.length > 0
 
   const handleExampleSelect = useCallback((example: ExampleDiagram) => {
@@ -101,17 +113,19 @@ function AppContent() {
       setShowExamples(false)
     } else {
       graphState.loadExample(example.nodes, example.edges)
+      resetChat()
       setChatInput(example.suggestedQuestion)
       setShowExamples(false)
     }
-  }, [canvasHasContent, graphState])
+  }, [canvasHasContent, graphState, resetChat])
 
   const handleConfirmExample = useCallback(() => {
     if (!pendingExample) return
     graphState.loadExample(pendingExample.nodes, pendingExample.edges)
+    resetChat()
     setChatInput(pendingExample.suggestedQuestion)
     setPendingExample(null)
-  }, [pendingExample, graphState])
+  }, [pendingExample, graphState, resetChat])
 
   const handleCancelExample = useCallback(() => {
     setPendingExample(null)
@@ -254,6 +268,8 @@ function AppContent() {
   )
 
   const { status, send } = useWebSocket({ url: WS_URL, onMessage })
+
+  useEffect(() => { sendRef.current = send }, [send])
 
   // Track which message IDs are auto-analysis for labeling
   const autoAnalysisMessageIds = useRef(new Set<string>())
