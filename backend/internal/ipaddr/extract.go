@@ -7,10 +7,15 @@ import (
 )
 
 // FromRequest returns the client IP from an HTTP request.
-// It trusts only the rightmost IP in X-Forwarded-For (set by the immediate
-// reverse proxy). Falls back to the direct connection address when no
-// forwarded header is present (local development).
+// It checks X-Real-IP first (set correctly by the inner nginx from $remote_addr),
+// then falls back to X-Forwarded-For. The double-proxy setup (outer nginx +
+// inner nginx) causes XFF to contain Docker-internal IPs as the rightmost entry,
+// so X-Real-IP is the reliable source in production.
 func FromRequest(r *http.Request) string {
+	if xri := strings.TrimSpace(r.Header.Get("X-Real-IP")); xri != "" {
+		return xri
+	}
+
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
 		// Rightmost entry is the one appended by our trusted proxy.

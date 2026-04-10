@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/coder/websocket"
@@ -18,10 +21,17 @@ import (
 	"github.com/shadowbane1000/designpair/internal/ratelimit"
 )
 
-const maxNodes = 50
-const maxNodeNameLen = 100
-const maxAnnotationLen = 500
-const maxChatMessageLen = 200
+const (
+	maxNodes          = 50
+	maxEdges          = 200
+	maxNodeNameLen    = 100
+	maxAnnotationLen  = 500
+	maxChatMessageLen = 200
+	maxProtocolLen    = 50
+	maxReadBytes      = 1 << 20 // 1 MB message size limit
+	idleTimeout       = 30 * time.Minute
+	maxConnsPerIP     = 5
+)
 
 // validNodeTypes is the whitelist of accepted component types.
 var validNodeTypes = map[string]bool{
@@ -45,16 +55,57 @@ var validNodeTypes = map[string]bool{
 	"externalApi":        true,
 }
 
+// connTracker tracks per-IP active WebSocket connection counts.
+type connTracker struct {
+	mu    sync.Mutex
+	conns map[string]*atomic.Int32
+}
+
+func newConnTracker() *connTracker {
+	return &connTracker{conns: make(map[string]*atomic.Int32)}
+}
+
+func (ct *connTracker) acquire(ip string) bool {
+	ct.mu.Lock()
+	counter, ok := ct.conns[ip]
+	if !ok {
+		counter = &atomic.Int32{}
+		ct.conns[ip] = counter
+	}
+	ct.mu.Unlock()
+
+	for {
+		cur := counter.Load()
+		if cur >= int32(maxConnsPerIP) {
+			return false
+		}
+		if counter.CompareAndSwap(cur, cur+1) {
+			return true
+		}
+	}
+}
+
+func (ct *connTracker) release(ip string) {
+	ct.mu.Lock()
+	counter, ok := ct.conns[ip]
+	ct.mu.Unlock()
+	if !ok {
+		return
+	}
+	counter.Add(-1)
+}
+
 // Handler manages WebSocket connections.
 type Handler struct {
 	llmClient  llm.Client
 	limiter    *ratelimit.Limiter
 	summarizer llm.Summarizer
+	tracker    *connTracker
 }
 
 // NewHandler creates a new WebSocket handler.
 func NewHandler(llmClient llm.Client, limiter *ratelimit.Limiter) *Handler {
-	return &Handler{llmClient: llmClient, limiter: limiter}
+	return &Handler{llmClient: llmClient, limiter: limiter, tracker: newConnTracker()}
 }
 
 // SetSummarizer configures the summarizer for conversation memory.
@@ -64,17 +115,40 @@ func (h *Handler) SetSummarizer(s llm.Summarizer) {
 
 // ServeHTTP upgrades the connection and handles messages.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	clientIP := ipaddr.FromRequest(r)
+
+	// Per-IP concurrent connection limit
+	if !h.tracker.acquire(clientIP) {
+		logAbuse("conn_limit", clientIP, fmt.Sprintf("max=%d", maxConnsPerIP))
+		http.Error(w, "too many connections", http.StatusTooManyRequests)
+		return
+	}
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: false,
+		OriginPatterns: []string{
+			"https://designpair.colberts.us",
+			"http://localhost:*",
+			"http://127.0.0.1:*",
+		},
 	})
 	if err != nil {
+		h.tracker.release(clientIP)
 		slog.Error("WebSocket accept error", "error", err)
 		return
 	}
-	defer func() { _ = conn.CloseNow() }()
+	defer func() {
+		_ = conn.CloseNow()
+		h.tracker.release(clientIP)
+	}()
 
-	clientIP := ipaddr.FromRequest(r)
-	ctx := r.Context()
+	// Message size limit — prevents OOM from oversized messages
+	conn.SetReadLimit(maxReadBytes)
+
+	// Idle timeout — clean up abandoned connections
+	ctx, cancel := context.WithTimeout(r.Context(), idleTimeout)
+	defer cancel()
+
 	slog.Info("WebSocket client connected", "ip", clientIP)
 
 	conversation := llm.NewConversationManager(120000, 20)
@@ -248,6 +322,14 @@ func (h *Handler) validate(ctx context.Context, conn *websocket.Conn, requestID 
 		logAbuse("too_many_nodes", clientIP, fmt.Sprintf("count=%d", len(gs.Nodes)))
 		sendValidationError(ctx, conn, requestID, "too_many_nodes",
 			fmt.Sprintf("Your diagram has %d nodes, which exceeds the maximum of %d. Please simplify your architecture to get AI feedback.", len(gs.Nodes), maxNodes),
+			nil, nil)
+		return false
+	}
+
+	if len(gs.Edges) > maxEdges {
+		logAbuse("too_many_edges", clientIP, fmt.Sprintf("count=%d", len(gs.Edges)))
+		sendValidationError(ctx, conn, requestID, "too_many_edges",
+			fmt.Sprintf("Your diagram has %d connections, which exceeds the maximum of %d. Please simplify your architecture to get AI feedback.", len(gs.Edges), maxEdges),
 			nil, nil)
 		return false
 	}
@@ -698,6 +780,9 @@ func validateAddEdge(input json.RawMessage, gs model.GraphState) string {
 	if params.Source == "" || params.Target == "" {
 		return "Error: source and target are required"
 	}
+	if len(params.Protocol) > maxProtocolLen {
+		return fmt.Sprintf("Error: protocol label too long (max %d characters)", maxProtocolLen)
+	}
 	sourceID := nodeIDByName(gs, params.Source)
 	targetID := nodeIDByName(gs, params.Target)
 	if sourceID == "" {
@@ -754,6 +839,9 @@ func validateModifyEdge(input json.RawMessage, gs model.GraphState) string {
 	}
 	if params.Source == "" || params.Target == "" {
 		return "Error: source and target are required"
+	}
+	if len(params.NewProtocol) > maxProtocolLen {
+		return fmt.Sprintf("Error: protocol label too long (max %d characters)", maxProtocolLen)
 	}
 	if errMsg := findEdge(gs, params.Source, params.Target, params.Protocol, params.Direction); errMsg != "" {
 		return errMsg
