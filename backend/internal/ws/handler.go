@@ -117,8 +117,9 @@ func (h *Handler) SetSummarizer(s llm.Summarizer) {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	clientIP := ipaddr.FromRequest(r)
 
-	// Per-IP concurrent connection limit
-	if !h.tracker.acquire(clientIP) {
+	// Per-IP concurrent connection limit (exempt loopback for local testing)
+	isLoopback := clientIP == "127.0.0.1" || clientIP == "::1" || clientIP == "localhost"
+	if !isLoopback && !h.tracker.acquire(clientIP) {
 		logAbuse("conn_limit", clientIP, fmt.Sprintf("max=%d", maxConnsPerIP))
 		http.Error(w, "too many connections", http.StatusTooManyRequests)
 		return
@@ -133,13 +134,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		h.tracker.release(clientIP)
+		if !isLoopback {
+			h.tracker.release(clientIP)
+		}
 		slog.Error("WebSocket accept error", "error", err)
 		return
 	}
 	defer func() {
 		_ = conn.CloseNow()
-		h.tracker.release(clientIP)
+		if !isLoopback {
+			h.tracker.release(clientIP)
+		}
 	}()
 
 	// Message size limit — prevents OOM from oversized messages
