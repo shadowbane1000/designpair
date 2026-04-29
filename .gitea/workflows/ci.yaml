@@ -9,7 +9,7 @@ on:
 
 jobs:
   lint-test-build:
-    runs-on: ubuntu-latest
+    runs-on: large
     if: github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
         run: cd backend && go build -o /dev/null ./cmd/designpair
 
   deploy-app:
-    runs-on: ubuntu-latest
+    runs-on: large
     needs: lint-test-build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -103,7 +103,7 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   deploy-pr:
-    runs-on: ubuntu-latest
+    runs-on: large
     needs: lint-test-build
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
@@ -171,7 +171,7 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   teardown-pr:
-    runs-on: ubuntu-latest
+    runs-on: small
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     steps:
       - uses: actions/checkout@v4
@@ -197,7 +197,7 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   deploy-adrs:
-    runs-on: ubuntu-latest
+    runs-on: large
     needs: lint-test-build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
