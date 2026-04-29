@@ -10,7 +10,7 @@
 
 ```bash
 # Clone the repository
-git clone http://gitea:3000/tyler/designpair.git
+git clone http://gitea.home.colberts.us:3000/tyler/designpair.git
 cd designpair
 
 # Install frontend dependencies
