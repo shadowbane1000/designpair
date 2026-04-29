@@ -92,7 +92,7 @@ When a developer pushes code to the repository, the CI pipeline automatically ru
 ## Assumptions
 
 - Developers have Node.js (v20+), Go (v1.24+), and Docker installed locally
-- The Gitea instance at `gitea:3000` is available for CI pipeline execution
+- The Gitea instance at `gitea.home.colberts.us:3000` is available for CI pipeline execution
 - The existing DesignPair CI workflow (ADR Insight deployment) will coexist with the new lint/test/build steps
 - Hot reload for the frontend is provided by Vite's dev server; no custom setup needed
 - The backend health check is a simple HTTP GET endpoint (no authentication required)
