@@ -9,7 +9,7 @@ on:
 
 jobs:
   lint-test-build:
-    runs-on: ubuntu-latest
+    runs-on: large
     if: github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
@@ -44,11 +44,16 @@ jobs:
         run: cd backend && go build -o /dev/null ./cmd/designpair
 
   deploy-app:
-    runs-on: ubuntu-latest
+    runs-on: large
     needs: lint-test-build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Docker CLI
+        run: |
+          curl -sL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz | tar -xz -C /tmp docker/docker
+          cp /tmp/docker/docker /usr/local/bin/
 
       - name: Build Docker images
         run: |
@@ -59,11 +64,19 @@ jobs:
         run: docker save designpair-frontend:latest designpair-backend:latest | gzip > /tmp/designpair-images.tar.gz
 
       - name: Setup SSH key
+        env:
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H tyler.colberts.us >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host tyler.colberts.us
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Upload to server
         run: |
@@ -103,11 +116,16 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   deploy-pr:
-    runs-on: ubuntu-latest
+    runs-on: large
     needs: lint-test-build
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Docker CLI
+        run: |
+          curl -sL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz | tar -xz -C /tmp docker/docker
+          cp /tmp/docker/docker /usr/local/bin/
 
       - name: Get PR number
         id: pr
@@ -133,11 +151,19 @@ jobs:
           docker save designpair-frontend:pr-${PR_NUM} designpair-backend:pr-${PR_NUM} | gzip > /tmp/designpair-pr-images.tar.gz
 
       - name: Setup SSH key
+        env:
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H tyler.colberts.us >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host tyler.colberts.us
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Upload to server
         run: |
@@ -171,17 +197,25 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   teardown-pr:
-    runs-on: ubuntu-latest
+    runs-on: small
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup SSH key
+        env:
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H tyler.colberts.us >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host tyler.colberts.us
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Teardown PR preview
         run: |
@@ -197,11 +231,16 @@ jobs:
         run: rm -f ~/.ssh/deploy_key
 
   deploy-adrs:
-    runs-on: ubuntu-latest
+    runs-on: large
     needs: lint-test-build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Docker CLI
+        run: |
+          curl -sL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz | tar -xz -C /tmp docker/docker
+          cp /tmp/docker/docker /usr/local/bin/
 
       - name: Clone ADR Insight
         run: git clone http://192.168.0.41:3000/tyler/adrinsight.git /tmp/adrinsight
@@ -243,11 +282,19 @@ jobs:
         run: docker save adrinsight:designpair | gzip > /tmp/adrinsight-designpair.tar.gz
 
       - name: Setup SSH key
+        env:
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H tyler.colberts.us >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host tyler.colberts.us
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Upload to server
         run: |
