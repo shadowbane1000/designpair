@@ -243,7 +243,7 @@ jobs:
           cp /tmp/docker/docker /usr/local/bin/
 
       - name: Clone ADR Insight
-        run: git clone http://192.168.0.41:3000/tyler/adrinsight.git /tmp/adrinsight
+        run: git clone http://gitea:3000/tyler/adrinsight.git /tmp/adrinsight
 
       - name: Build ADR Insight image
         run: docker build -t adrinsight:designpair /tmp/adrinsight
